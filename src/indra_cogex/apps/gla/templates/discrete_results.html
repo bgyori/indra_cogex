@@ -9,6 +9,11 @@
             rel="stylesheet"
             href="https://cdn.datatables.net/1.10.19/css/dataTables.bootstrap4.min.css"
     />
+    <!-- DataTables buttons, see: https://datatables.net/download/release -->
+    <link
+            rel="stylesheet"
+            href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.dataTables.min.css"
+    >
 {% endblock %}
 
 {% block scripts %}
@@ -16,8 +21,15 @@
     <!-- DataTables, see: https://datatables.net/examples/styling/bootstrap4.html-->
     <script src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.10.19/js/dataTables.bootstrap4.min.js"></script>
+    <!-- DataTables buttons, see: https://datatables.net/download/release -->
+    <script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
     <script>
-        const datatablesConf = {"order": [[2, "asc"]]};
+        const datatablesConf = {
+            order: [[2, "asc"]],
+            buttons: [
+                'copy', 'excel', 'pdf'
+            ]
+        };
         $(document).ready(function () {
             $("#table-go").DataTable(datatablesConf);
             $("#table-reactome").DataTable(datatablesConf);
