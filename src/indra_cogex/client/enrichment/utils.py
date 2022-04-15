@@ -14,6 +14,7 @@ __all__ = [
     "get_go",
     "get_wikipathways",
     "get_reactome",
+    "get_phenotype_gene_sets",
     "get_entity_to_targets",
     "get_entity_to_regulators",
 ]
@@ -130,6 +131,32 @@ def get_reactome(*, client: Neo4jClient) -> Dict[Tuple[str, str], Set[str]]:
     """
     )
     logger.info("caching Reactome with Cypher query: %s", query)
+    return collect_gene_sets(client=client, query=query)
+
+
+@autoclient(cache=True)
+def get_phenotype_gene_sets(*, client: Neo4jClient) -> Dict[Tuple[str, str], Set[str]]:
+    """Get HPO phenotype gene sets.
+
+    Parameters
+    ----------
+    client :
+        The Neo4j client.
+
+    Returns
+    -------
+    :
+        A dictionary whose keys that are 2-tuples of CURIE and name of each phenotype
+        gene set and whose values are sets of HGNC gene identifiers (as strings)
+    """
+    query = dedent(
+        """\
+        MATCH (s:BioEntity)-[:phenotype_has_gene]-(gene:BioEntity)
+        WHERE s.id STARTS WITH "HP" and gene.id STARTS WITH "hgnc"
+        RETURN s.id, s.name, collect(gene.id);
+    """
+    )
+    logger.info("caching phenotype gene sets with Cypher query: %s", query)
     return collect_gene_sets(client=client, query=query)
 
 

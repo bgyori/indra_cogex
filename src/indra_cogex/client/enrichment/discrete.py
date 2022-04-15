@@ -13,6 +13,7 @@ from indra_cogex.client.enrichment.utils import (
     get_entity_to_regulators,
     get_entity_to_targets,
     get_go,
+    get_phenotype_gene_sets,
     get_reactome,
     get_wikipathways,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "go_ora",
     "wikipathways_ora",
     "reactome_ora",
+    "phenotype_ora",
     "indra_downstream_ora",
     "indra_upstream_ora",
 ]
@@ -248,6 +250,33 @@ def reactome_ora(
     return _do_ora(get_reactome(client=client), query=gene_ids, count=count, **kwargs)
 
 
+@autoclient()
+def phenotype_ora(
+    gene_ids: Iterable[str], *, client: Neo4jClient, **kwargs
+) -> pd.DataFrame:
+    """Calculate over-representation on all HP phenotypes.
+
+    Parameters
+    ----------
+    gene_ids :
+        List of gene identifiers
+    client :
+        Neo4jClient
+    **kwargs :
+        Additional keyword arguments to pass to _do_ora
+
+    Returns
+    -------
+    :
+        DataFrame with columns:
+        curie, name, p, q, mlp, mlq
+    """
+    count = count_human_genes(client=client)
+    return _do_ora(
+        get_phenotype_gene_sets(client=client), query=gene_ids, count=count, **kwargs
+    )
+
+
 def indra_downstream_ora(
     client: Neo4jClient,
     gene_ids: Iterable[str],
@@ -355,6 +384,12 @@ def main():
     print("\n## Reactome Enrichment\n")
     print(
         reactome_ora(client=client, gene_ids=EXAMPLE_GENE_IDS)
+        .head(15)
+        .to_markdown(index=False)
+    )
+    print("\n## Phenotype Enrichment\n")
+    print(
+        phenotype_ora(client=client, gene_ids=EXAMPLE_GENE_IDS)
         .head(15)
         .to_markdown(index=False)
     )

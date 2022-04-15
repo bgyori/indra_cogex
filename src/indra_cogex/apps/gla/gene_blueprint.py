@@ -40,6 +40,7 @@ from ...client.enrichment.discrete import (
     go_ora,
     indra_downstream_ora,
     indra_upstream_ora,
+    phenotype_ora,
     reactome_ora,
     wikipathways_ora,
 )
@@ -203,6 +204,13 @@ def discretize_analysis():
             alpha=alpha,
             keep_insignificant=keep_insignificant,
         )
+        phenotype_results = phenotype_ora(
+            gene_set,
+            client=client,
+            method=method,
+            alpha=alpha,
+            keep_insignificant=keep_insignificant,
+        )
         if form.indra_path_analysis.data:
             indra_upstream_results = indra_upstream_ora(
                 client,
@@ -237,6 +245,9 @@ def discretize_analysis():
             reactome_results.to_csv(
                 downloads.joinpath("reactome_results.tsv"), sep="\t", index=False
             )
+            phenotype_results.to_csv(
+                downloads.joinpath("phenotype_results.tsv"), sep="\t", index=False
+            )
             if form.indra_path_analysis.data:
                 indra_downstream_results.to_csv(
                     downloads.joinpath("indra_downstream_results.tsv"),
@@ -260,6 +271,7 @@ def discretize_analysis():
             go_results=go_results,
             wikipathways_results=wikipathways_results,
             reactome_results=reactome_results,
+            phenotype_results=phenotype_results,
             indra_downstream_results=indra_downstream_results,
             indra_upstream_results=indra_upstream_results,
         )
