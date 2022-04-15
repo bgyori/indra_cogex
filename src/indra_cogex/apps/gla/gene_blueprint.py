@@ -18,6 +18,7 @@ from indra_cogex.client.enrichment.continuous import (
     get_mouse_scores,
     indra_downstream_gsea,
     indra_upstream_gsea,
+    phenotype_gsea,
     reactome_gsea,
     wikipathways_gsea,
 )
@@ -347,6 +348,14 @@ def continuous_analysis():
             )
         elif source == "reactome":
             results = reactome_gsea(
+                client=client,
+                scores=scores,
+                permutation_num=permutations,
+                alpha=alpha,
+                keep_insignificant=keep_insignificant,
+            )
+        elif source == "phenotype":
+            results = phenotype_gsea(
                 client=client,
                 scores=scores,
                 permutation_num=permutations,

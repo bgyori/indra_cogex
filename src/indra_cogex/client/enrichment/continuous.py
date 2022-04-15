@@ -23,6 +23,7 @@ from indra_cogex.client.enrichment.utils import (
     get_entity_to_regulators,
     get_entity_to_targets,
     get_go,
+    get_phenotype_gene_sets,
     get_reactome,
     get_wikipathways,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "go_gsea",
     "wikipathways_gsea",
     "reactome_gsea",
+    "phenotype_gsea",
     "indra_upstream_gsea",
     "indra_downstream_gsea",
     "gsea",
@@ -284,6 +286,42 @@ def reactome_gsea(
     """
     return gsea(
         gene_sets=get_reactome(client=client),
+        scores=scores,
+        directory=directory,
+        **kwargs,
+    )
+
+
+@autoclient()
+def phenotype_gsea(
+    scores: Dict[str, float],
+    directory: Union[None, Path, str] = None,
+    *,
+    client: Neo4jClient,
+    **kwargs,
+) -> pd.DataFrame:
+    """Run GSEA with HPO phenotype gene sets.
+
+    Parameters
+    ----------
+    client :
+        The Neo4j client.
+    scores :
+        A mapping from HGNC gene identifiers to floating point scores
+        (e.g., from a differential gene expression analysis)
+    directory :
+        Specify the directory if the results should be saved, including
+        both a dataframe and plots for each gen set
+    kwargs :
+        Remaining keyword arguments to pass through to :func:`gseapy.prerank`
+
+    Returns
+    -------
+    :
+        A pandas dataframe with the GSEA results
+    """
+    return gsea(
+        gene_sets=get_phenotype_gene_sets(client=client),
         scores=scores,
         directory=directory,
         **kwargs,
