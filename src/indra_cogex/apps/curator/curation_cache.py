@@ -115,3 +115,17 @@ class CurationCache:
         )
 
         return dbid
+
+    def get_incorrect_source_hashes(self) -> Set[int]:
+        """Get a set of all evidence hashes marked as incorrect (undisputed)."""
+        d: DefaultDict[int, Curations] = defaultdict(list)
+        for curation in self.get_curation_cache():
+            d[curation["source_hash"]].append(curation)
+        return {
+            source_hash
+            for source_hash, curations in d.items()
+            if all(
+                curation["tag"] != "correct"
+                for curation in curations
+            )
+        }
