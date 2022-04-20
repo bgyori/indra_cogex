@@ -116,11 +116,12 @@ class CurationCache:
 
         return dbid
 
-    def get_incorrect_source_hashes(self) -> Set[int]:
+    def get_incorrect_evidence_hashes(self) -> Set[int]:
         """Get a set of all evidence hashes marked as incorrect (undisputed)."""
         d: DefaultDict[int, Curations] = defaultdict(list)
         for curation in self.get_curation_cache():
             d[curation["source_hash"]].append(curation)
+        # todo potentially resolve by curator to only keep most recent
         return {
             source_hash
             for source_hash, curations in d.items()
@@ -128,4 +129,12 @@ class CurationCache:
                 curation["tag"] != "correct"
                 for curation in curations
             )
+        }
+
+    def get_correct_statement_hashes(self) -> Set[int]:
+        """Get a set of all statement hashes marked as correct."""
+        return {
+            curation["pa_hash"]
+            for curation in self.get_curation_cache()
+            if curation["tag"] == "correct"
         }

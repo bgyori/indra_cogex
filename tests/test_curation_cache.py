@@ -13,7 +13,7 @@ class MockCurationCache(CurationCache):
 
 
 class TestCurationCache(unittest.TestCase):
-    def test_get_incorrect_source_hashes(self):
+    def test_get_incorrect_evidence_hashes(self):
         curations = [
             dict(source_hash=1, tag="correct"),
             dict(source_hash=1, tag="incorrect"),
@@ -21,5 +21,16 @@ class TestCurationCache(unittest.TestCase):
             dict(source_hash=3, tag="incorrect"),
         ]
         curation_cache = MockCurationCache(curations)
-        incorrect_hashes = curation_cache.get_incorrect_source_hashes()
-        self.assertEqual({3}, incorrect_hashes)
+        evidence_hashes = curation_cache.get_incorrect_evidence_hashes()
+        self.assertEqual({3}, evidence_hashes)
+
+    def test_get_correct_statement_hashes(self):
+        curations = [
+            dict(pa_hash=1, tag="correct"),
+            dict(pa_hash=1, tag="incorrect"),
+            dict(pa_hash=2, tag="correct"),
+            dict(pa_hash=3, tag="incorrect"),
+        ]
+        curation_cache = MockCurationCache(curations)
+        statement_hashes = curation_cache.get_correct_statement_hashes()
+        self.assertEqual({1, 2}, statement_hashes)
