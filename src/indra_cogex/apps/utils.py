@@ -324,6 +324,7 @@ def get_curated_pa_hashes(
     curations: Optional[List[Mapping[str, Any]]] = None, only_correct: bool = True
 ) -> Mapping[int, Set[int]]:
     """Get a mapping from statement hashes to evidence hashes."""
+    # TODO replace with CurationCache.get_curated_pa_hashes
     if curations is None:
         curations = get_curations()
     rv = defaultdict(set)
