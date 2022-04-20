@@ -131,6 +131,13 @@ class CurationCache:
             )
         }
 
+    def get_curated_evidence_hashes(self) -> Set[int]:
+        """Get a set of all evidence hashes."""
+        return {
+            curation["source_hash"]
+            for curation in self.get_curation_cache()
+        }
+
     def get_correct_statement_hashes(self) -> Set[int]:
         """Get a set of all statement hashes marked as correct."""
         return {
