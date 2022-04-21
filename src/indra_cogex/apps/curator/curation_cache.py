@@ -1,5 +1,5 @@
 """
-A class to manage curations and the curation cache
+A class to manage curations and the curation cache.
 
 The curation cache should handle:
     - Loading curations to cache in memory
@@ -7,13 +7,23 @@ The curation cache should handle:
     - Update the in memory cache when curations are submitted or at regular
       intervals
 """
-from datetime import timedelta, datetime
-from typing import List, Dict, Union, Optional
-from indra.sources.indra_db_rest import get_curations, submit_curation
+
+from collections import defaultdict
+from datetime import datetime, timedelta
+from typing import DefaultDict, Dict, List, Optional, Set, Union
+
 import pandas as pd
 
+from indra.sources.indra_db_rest import get_curations, submit_curation
 
-Curations = List[Dict[str, Optional[Union[str, int]]]]
+__all__ = [
+    "CurationCache",
+    "Curation",
+    "Curations",
+]
+
+Curation = Dict[str, Optional[Union[str, int]]]
+Curations = List[Curation]
 
 
 class CurationCache:
