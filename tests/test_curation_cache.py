@@ -22,6 +22,7 @@ class TestCurationCache(unittest.TestCase):
         ]
         curation_cache = MockCurationCache(curations)
         self.assertEqual({3}, curation_cache.get_incorrect_evidence_hashes())
+        self.assertEqual({1, 2}, curation_cache.get_correct_evidence_hashes())
         self.assertEqual({1, 2, 3}, curation_cache.get_curated_evidence_hashes())
 
     def test_get_correct_statement_hashes(self):
