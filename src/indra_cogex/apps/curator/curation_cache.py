@@ -50,7 +50,7 @@ class CurationCache:
 
     @staticmethod
     def _get_curation_df(curations) -> pd.DataFrame:
-        rv = pd.DataFrame(curation_list).astype(
+        rv = pd.DataFrame(curations).astype(
             dtype={
                 "id": pd.Int64Dtype(),
                 "pa_hash": pd.Int64Dtype(),
