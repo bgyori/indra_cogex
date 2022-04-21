@@ -12,8 +12,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import DefaultDict, Dict, List, Optional, Set, Union
 
+import dateutil.parser
 import pandas as pd
-
 from indra.sources.indra_db_rest import get_curations, submit_curation
 
 __all__ = [
@@ -42,15 +42,27 @@ class CurationCache:
 
     def refresh_curations(self):
         """Refresh the curation cache"""
-        self.curation_list: Curations = get_curations()
-        self.curations_df = pd.DataFrame(self.curation_list).astype(
+        self.curation_list: Curations = [
+            self._process_curation(curation) for curation in get_curations()
+        ]
+        self.curations_df = self._get_curation_df(self.curation_list)
+        self.last_update = datetime.utcnow()
+
+    @staticmethod
+    def _get_curation_df(curations) -> pd.DataFrame:
+        rv = pd.DataFrame(curation_list).astype(
             dtype={
                 "id": pd.Int64Dtype(),
                 "pa_hash": pd.Int64Dtype(),
                 "source_hash": pd.Int64Dtype(),
             }
         )
-        self.last_update = datetime.utcnow()
+        return rv
+
+    @staticmethod
+    def _process_curation(curation) -> Curation:
+        curation["date"] = dateutil.parser.parse(curation["date"])
+        return curation
 
     def get_curation_cache(self, refresh: bool = False) -> Curations:
         """Get the curations in the cache"""
