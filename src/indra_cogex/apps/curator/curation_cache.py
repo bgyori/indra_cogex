@@ -67,7 +67,22 @@ class CurationCache:
     def get_curation_cache(
         self, refresh: bool = False, only_most_recent: bool = False
     ) -> Curations:
-        """Get the curations in the cache"""
+        """Get the curations in the cache.
+
+        Parameters
+        ----------
+        refresh :
+            Whether to refresh the curation cache
+        only_most_recent :
+            Set to true to filter out all but the most recent (based on date)
+            for all given curator/statement/evidence triples.
+
+        Returns
+        -------
+        :
+            A list of all curations, potentially filtered if
+            ``only_most_recent`` is set to true.
+        """
         if refresh:
             self.refresh_curations()
         if not only_most_recent:
@@ -157,46 +172,92 @@ class CurationCache:
 
         return dbid
 
-    def get_correct_evidence_hashes(self) -> Set[int]:
-        """Get a set of all evidence hashes marked as correct."""
+    def get_correct_evidence_hashes(self, only_most_recent: bool = False) -> Set[int]:
+        """Get a set of all evidence hashes marked as correct.
+
+        Parameters
+        ----------
+        only_most_recent :
+            Set to true to filter out all but the most recent (based on date)
+            for all given curator/statement/evidence triples.
+
+        Returns
+        -------
+        :
+            A set of evidence hashes (i.e., from the "source_hash" field) that
+            have been marked as correct
+        """
         d: DefaultDict[int, Curations] = defaultdict(list)
-        for curation in self.get_curation_cache():
+        for curation in self.get_curation_cache(only_most_recent=only_most_recent):
             d[curation["source_hash"]].append(curation)
         return {
             source_hash
             for source_hash, curations in d.items()
-            if any(
-                curation["tag"] == "correct"
-                for curation in curations
-            )
+            if any(curation["tag"] == "correct" for curation in curations)
         }
 
-    def get_incorrect_evidence_hashes(self) -> Set[int]:
-        """Get a set of all evidence hashes marked as incorrect (undisputed)."""
+    def get_incorrect_evidence_hashes(self, only_most_recent: bool = False) -> Set[int]:
+        """Get a set of all evidence hashes marked as incorrect (undisputed).
+
+        Parameters
+        ----------
+        only_most_recent :
+            Set to true to filter out all but the most recent (based on date)
+            for all given curator/statement/evidence triples.
+
+        Returns
+        -------
+        :
+            A set of evidence hashes (i.e., from the "source_hash" field) that
+            have been not been marked incorrect
+        """
         d: DefaultDict[int, Curations] = defaultdict(list)
-        for curation in self.get_curation_cache():
+        for curation in self.get_curation_cache(only_most_recent=only_most_recent):
             d[curation["source_hash"]].append(curation)
         # todo potentially resolve by curator to only keep most recent
         return {
             source_hash
             for source_hash, curations in d.items()
-            if all(
-                curation["tag"] != "correct"
-                for curation in curations
-            )
+            if all(curation["tag"] != "correct" for curation in curations)
         }
 
-    def get_curated_evidence_hashes(self) -> Set[int]:
-        """Get a set of all evidence hashes."""
+    def get_curated_evidence_hashes(self, only_most_recent: bool = False) -> Set[int]:
+        """Get a set of all evidence hashes.
+
+        Parameters
+        ----------
+        only_most_recent :
+            Set to true to filter out all but the most recent (based on date)
+            for all given curator/statement/evidence triples.
+
+        Returns
+        -------
+        :
+            A set of all evidence hashes (i.e., from the "source_hash" field) that
+            have been curated
+        """
         return {
             curation["source_hash"]
-            for curation in self.get_curation_cache()
+            for curation in self.get_curation_cache(only_most_recent=only_most_recent)
         }
 
-    def get_correct_statement_hashes(self) -> Set[int]:
-        """Get a set of all statement hashes marked as correct."""
+    def get_correct_statement_hashes(self, only_most_recent: bool = False) -> Set[int]:
+        """Get a set of all statement hashes marked as correct.
+
+        Parameters
+        ----------
+        only_most_recent :
+            Set to true to filter out all but the most recent (based on date)
+            for all given curator/statement/evidence triples.
+
+        Returns
+        -------
+        :
+            A set of statement hashes (i.e., from the "pa_hash" field) that
+            have been marked as correct by any curator, for any evidence
+        """
         return {
             curation["pa_hash"]
-            for curation in self.get_curation_cache()
+            for curation in self.get_curation_cache(only_most_recent=only_most_recent)
             if curation["tag"] == "correct"
         }
