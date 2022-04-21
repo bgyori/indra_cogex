@@ -214,7 +214,6 @@ class CurationCache:
         d: DefaultDict[int, Curations] = defaultdict(list)
         for curation in self.get_curation_cache(only_most_recent=only_most_recent):
             d[curation["source_hash"]].append(curation)
-        # todo potentially resolve by curator to only keep most recent
         return {
             source_hash
             for source_hash, curations in d.items()
