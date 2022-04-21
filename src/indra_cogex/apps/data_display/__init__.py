@@ -9,26 +9,25 @@ import json
 import logging
 from collections import defaultdict
 from http import HTTPStatus
-from typing import Iterable, Any, Dict, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from flask import Blueprint, Response, abort, jsonify, render_template, request
 from flask_jwt_extended import jwt_optional
 from indra.sources.indra_db_rest import IndraDBRestAPIError
 from indra.statements import Statement
 from indralab_auth_tools.auth import resolve_auth
-from indra_cogex.client.queries import enrich_statements
 
+from indra_cogex.apps.curator import CurationCache
 from indra_cogex.apps.proxies import client
 from indra_cogex.apps.queries_web.helpers import process_result
 from indra_cogex.client.queries import (
-    get_stmts_for_stmt_hashes,
+    enrich_statements,
     get_evidences_for_stmt_hash,
+    get_stmts_for_stmt_hashes,
     get_stmts_meta_for_stmt_hashes,
 )
-from indra_cogex.apps.curator import CurationCache
 
-from ..constants import LOCAL_VUE, VUE_SRC_JS, VUE_SRC_CSS, sources_dict
-
+from ..constants import LOCAL_VUE, VUE_SRC_CSS, VUE_SRC_JS, sources_dict
 from ..utils import format_stmts
 from ...representation import Relation
 
@@ -130,7 +129,6 @@ if LOCAL_VUE:
     def serve_indralab_vue(file):
         return send_from_directory(LOCAL_VUE, file)
 
-
 else:
     logger.info(f"Using Vue deployment at: {VUE_SRC_JS}")
 
@@ -224,7 +222,6 @@ def statement_display():
     email = user.email if user else ""
     remove_medscan = user is None
 
-    # TODO enable preloading evidenes
     preload_evidence = request.args.get("preload") in {"t", "true", "True"}
 
     # Get the statements hash from the query string

@@ -94,11 +94,10 @@ class CurationCache:
         aggregator = defaultdict(list)
         for curation in self.curation_list:
             aggregator[self._curation_key(curation)].append(curation)
-        d = {
-            key: max(values, key=lambda value: value["date"])
-            for key, values in aggregator.items()
-        }
-        return [v for _, v in sorted(d.items())]
+        return [
+            max(values, key=lambda value: value["date"])
+            for values in aggregator.values()
+        ]
 
     @staticmethod
     def _curation_key(curation):
