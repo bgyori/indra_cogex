@@ -64,11 +64,30 @@ class CurationCache:
         curation["date"] = dateutil.parser.parse(curation["date"])
         return curation
 
-    def get_curation_cache(self, refresh: bool = False) -> Curations:
+    def get_curation_cache(
+        self, refresh: bool = False, only_most_recent: bool = False
+    ) -> Curations:
         """Get the curations in the cache"""
         if refresh:
             self.refresh_curations()
-        return self.curation_list
+        if not only_most_recent:
+            return self.curation_list
+
+        # Aggregate all curations by curator/statement/evidence,
+        # then only keep the curation with the most recent datetime
+        keys = ("curator", "pa_hash", "source_hash")
+        aggregator = defaultdict(list)
+        for curation in self.curation_list:
+            aggregator[self._curation_key(curation)].append(curation)
+        d = {
+            key: max(values, key=lambda value: value["date"])
+            for key, values in aggregator.items()
+        }
+        return [v for _, v in sorted(d.items())]
+
+    @staticmethod
+    def _curation_key(curation):
+        return tuple(curation[key] for key in ("curator", "pa_hash", "source_hash"))
 
     def get_curations(
         self,
