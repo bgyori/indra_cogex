@@ -22,6 +22,7 @@
             $("#table-go").DataTable(datatablesConf);
             $("#table-reactome").DataTable(datatablesConf);
             $("#table-wikipathways").DataTable(datatablesConf);
+            $("#table-phenotype").DataTable(datatablesConf);
             {% if indra_downstream_results is not none %}
             $("#table-downstream").DataTable(datatablesConf);
             $("#table-upstream").DataTable(datatablesConf);
@@ -139,6 +140,14 @@
                             pathway database.
                         </p>
                         {{ render_table(wikipathways_results, "table-wikipathways") }}
+                    </div>
+                    <div class="tab-pane" id="wikipathways" role="tabpanel" aria-labelledby="wikipathways-tab">
+                        <p>
+                            These results are acquired by running over-representation analysis using Fisher's exact test
+                            and correcting using {{ method }} and α={{ alpha }} on the genes annotated to phenotypes in
+                            the <a href="https://hpo.jax.org/">Human Phenotype Ontology annotation database</a>.
+                        </p>
+                        {{ render_table(phenotype_results, "table-phenotype") }}
                     </div>
                     {% if indra_downstream_results is not none %}
                         <div class="tab-pane" id="downstream" role="tabpanel" aria-labelledby="downstream-tab">

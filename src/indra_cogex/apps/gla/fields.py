@@ -47,6 +47,7 @@ source_field = RadioField(
         ("go", "Gene Ontology"),
         ("reactome", "Reactome"),
         ("wikipathways", "WikiPathways"),
+        ("phenotype", "HPO Phenotypes"),
         ("indra-upstream", "INDRA Upstream"),
         ("indra-downstrea", "INDRA Downstream"),
     ],
