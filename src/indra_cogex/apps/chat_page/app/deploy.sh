@@ -14,7 +14,8 @@ helpFunction() {
   echo "Example: $0 -i indralab-vue-0.1.0.tgz -s /chat"
   echo ""
   echo "This script will deploy the chat page to the bigmech S3 bucket. It assumes that a local packaging (*.tgz file)"
-  echo "of indralab-vue is available for install or is already installed."
+  echo "of indralab-vue is available for install or is already installed. This script assumes Node.js and the AWS CLI"
+  echo "are installed and available."
   exit 1 # Exit script after printing help
 }
 
