@@ -7,7 +7,7 @@ especially [this](https://stackoverflow.com/a/69157535/10478812) answer.
 #### Quickstart
 
 This readme describes most of the setup done in the deployment script in [app/deploy.sh](./app/deploy.sh). If 
-everything is set up correctly, this should be the only steps:
+everything is set up correctly, these should be the only steps to update the Vue frontend:
 - If `indralab-vue` has been updated or is not installed, a new build and packaging is required, run `npm run build` 
   and `npm pack` in the indralab-vue repository as described [below](#build-dist-for-indralab-vue) or in the Vue 
   [readme file](./app/README.md), then point the deployment script to the new package.
