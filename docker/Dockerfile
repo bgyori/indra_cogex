@@ -12,8 +12,9 @@ RUN git clone https://github.com/bgyori/indra_cogex.git && \
     python -m indra.ontology.bio build && \
     python -c "from indra_cogex.client.enrichment.utils import build_caches; build_caches();" && \
     # Install nodejs so npm can be used: https://github.com/nodesource/distributions/tree/igsu/16.x-lts#installation-instructions \
-    curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash - \
-    sudo apt-get install -y nodejs && \
+    wget https://deb.nodesource.com/setup_16.x && \
+    bash ./setup_16.x && \
+    apt-get install -y nodejs && \
     # Get indralab-vue, install it and then pack it to a local tgz file \
     git clone --single-branch --branch vue3 https://github.com/indralab/indralab-vue.git && \
     cd indralab-vue && \
