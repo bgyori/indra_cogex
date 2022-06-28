@@ -4,13 +4,27 @@ A somewhat outdated, but useful video [here](https://www.youtube.com/watch?v=5r9
 Helpful [SO question](https://stackoverflow.com/questions/31017105/how-do-you-set-a-default-root-object-for-subdirectories-for-a-statically-hosted), 
 especially [this](https://stackoverflow.com/a/69157535/10478812) answer.
 
-#### Build dist for indralab-vue and then for the chat app 
+#### Quickstart
+
+This readme describes most of the setup done in the deployment script in [app/deploy.sh](./app/deploy.sh). If 
+everything is set up correctly, this should be the only steps:
+- If `indralab-vue` has been updated or is not installed, a new build and packaging is required, run `npm run build` 
+  and `npm pack` in the indralab-vue repository as described [below](#build-dist-for-indralab-vue) or in the Vue 
+  [readme file](./app/README.md), then point the deployment script to the new package.
+- Run the deployment script from the [app](./app) directory:
+  `./deploy.sh [-i <path to indralab-vue tgz file>] [-s <path to S3 bucket>]`
+- Invalidate the cache on Cloudfront manually by following the instructions [below](#invalidating-the-cloudfront-cache-manually).
+
+#### Build dists for apps
 
 The full build process is documented in the Vue [readme file](./app/README.md).
 
-To summarize:
+##### Build dist for indralab-vue
+
 - Build the `indralab-vue` dist by running `npm run build` in the root directory of the `indralab-vue` repository
 - Pack the build by running `npm pack`. This will create a .tgz file that can be used as a standalone local installation.
+
+##### Build dist for the chat app
 - Install the `indralab-vue` dist: in the root directory of the Vue chat app, run `npm install /path/to/indralab-vue/indralab-vue-0.0.1.tgz`
 - Build the Vue chat app: in the root directory of the Vue chat app, run `npm run build`
 
@@ -88,24 +102,38 @@ _rewriting_ the request URI, see this
 not JavaScript and also is intended to run on Lambda, not CloudFront Functions, but the logic that's implemented there 
 would be the same.
 
-For full documentation on the event structure, see the
+For full documentation on the structure of the event that's being passed to the `handler` function, see the
 [AWS documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/functions-event-structure.html).
 
 Once done with entering the code:
 - Save the changes by clicking "Save changes"
 - To test the function, click the "Test" tab and follow the instructions 
 - Once the function is working, go to the "Publish" tab and click "Publish function". **Note:** if there already is 
-  a function published that is live, it's possible to inspect the current live 
-- To use the function a distribution has to be associated with it
-- Click "Add association":
+  a function published that is live, it's possible to inspect the current live function.
+- To use the function, a distribution has to be associated with it:
+  - Click "Add association"
   - Select the relevant distribution (the associated domains should be listed with each distribution)
   - For "Event type", select "Viewer Request"
   - For "Cache behavior", select the behavior set up earlier that is associated with requests going to the S3 bucket, 
     in this case `discovery_chat_app/*`
   - Click "Add association"
 - Click "View Distribution" to go back to the distribution page and wait for the distribution to be deployed.
-- Once the distribution is deployed, try it out: [https://discovery.indra.bio/discovery_chat_app/](https://discovery.indra.bio/discovery_chat_app/)
+- Once the distribution is deployed, try it out: [https://discovery.indra.bio/chat](https://discovery.indra.bio/chat)
+
+#### Invalidating the CloudFront cache manually
+
+Invalidate the CloudFront cache manually by going to https://us-east-1.console.aws.amazon.com/cloudfront/v3/home?region=us-east-1#/distributions and then:
+  - Log in to the AWS console if needed
+  - Click the distribution for discovery.indra.bio
+  - Click the invalidations tab
+  - Click 'Create invalidation'
+  - Add the path /chat* to the list of paths to be invalidated
+  - Click 'Create invalidation'
+  - Wait for the invalidation to complete
 
 #### Restrict access to bucket to only the CloudFront distribution (optional)
 
-This can be done in order to restrict access to the bucket itself but allow cloudfront to serve the content.
+This can be done in order to restrict access to the bucket itself but allow cloudfront to serve the content. This 
+includes setting up a new user using AWS IAM and where the user has access to the bucket. See more
+[here](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html).
+and here 
