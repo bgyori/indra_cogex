@@ -39,7 +39,7 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 ## Setting up the chat app for usage with imported components from indralab-vue
 
 ### Packaging `indralab-vue` for local install
-In the root of `indralab-vue`:
+In the root of the `indralab-vue` repository:
 
 - Run `npm run build`; this will create or update the `dist` directory (`dist` is the default name, another name might 
   be set)
@@ -47,8 +47,8 @@ In the root of `indralab-vue`:
 
 ### Installing indralab-vue locally
 
-In the root directory of the Vue chat app, i.e. `indra_cogex/apps/chat_page/app`, install the `indralab-vue` from the 
-.tgz file. _Note that the version number might be different._
+In the root directory of the Vue chat app of the `indra_cogex` repository, i.e. `indra_cogex/apps/chat_page/app`,
+install the `indralab-vue` from the .tgz file. _Note that the version number might be different._
 
 ```sh
 npm install /path/to/indralab-vue/indralab-vue-0.0.1.tgz
