@@ -3,23 +3,28 @@
 S3_URI_BASE=s3://bigmech
 PATH_DEFAULT="/chat"
 
-helpFunction()
-{
-   echo ""
-   echo "Usage: $0 [-i INDRALAB_VUE_TGZ] [-s S3_PATH]"
-   echo -e "\t-i Path to indralab-vue tgz file. If provided, it will be installed. If not, it is assumed to already be installed."
-   echo -e "\t-s The path in the bigmech S3 bucket to deploy to. Default is ${PATH_DEFAULT}. Path must start with /."
-   exit 1 # Exit script after printing help
+helpFunction() {
+
+  echo ""
+  echo "Usage: $0 [-i INDRALAB_VUE_TGZ] [-s S3_PATH]"
+  echo -e "\t-i Path to indralab-vue tgz file. If provided, it will be installed. If not, it is assumed to already be installed."
+  echo -e "\t-s The path in the bigmech S3 bucket to deploy to. Default is ${PATH_DEFAULT}. Path must start with /."
+  echo -e "\t-h Help"
+  echo ""
+  echo "Example: $0 -i indralab-vue-0.1.0.tgz -s /chat"
+  echo ""
+  echo "This script will deploy the chat page to the bigmech S3 bucket. It assumes that a local packaging (*.tgz file)"
+  echo "of indralab-vue is available for install or is already installed."
+  exit 1 # Exit script after printing help
 }
 
-while getopts "i:s:h" opt
-do
-   case "$opt" in
-      i ) indralabVueTgz="$OPTARG" ;;
-      s ) s3Path="$OPTARG" ;;
-      h ) helpFunction ;;
-      ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
-   esac
+while getopts "i:s:h" opt; do
+  case "$opt" in
+  i) indralabVueTgz="$OPTARG" ;;
+  s) s3Path="$OPTARG" ;;
+  h) helpFunction ;;
+  ?) helpFunction ;; # Print helpFunction in case parameter is non-existent
+  esac
 done
 
 # Print helpFunction in case parameters are empty (not needed for optional parameters)
@@ -30,10 +35,9 @@ done
 #fi
 
 # Install indralab-vue if provided
-if [ -n "$indralabVueTgz" ]
-then
-   echo "Installing indralab-vue from ${indralabVueTgz}"
-   npm install "${indralabVueTgz}"
+if [ -n "$indralabVueTgz" ]; then
+  echo "Installing indralab-vue from ${indralabVueTgz}"
+  npm install "${indralabVueTgz}"
 fi
 
 # Run the regular install
@@ -46,9 +50,9 @@ npm run build
 
 # Deploy to S3
 if [ -n "$s3Path" ]; then
-    PATH="$s3Path"
-else # Use the alternate S3 URI
-    PATH=$PATH_DEFAULT
+  PATH="$s3Path"
+else # Use the default S3 URI
+  PATH=$PATH_DEFAULT
 fi
 
 S3_URI="${S3_URI_BASE}${PATH}"
