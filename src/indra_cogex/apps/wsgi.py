@@ -10,6 +10,7 @@ from flask_bootstrap import Bootstrap4
 from indralab_auth_tools.auth import auth, config_auth
 
 from indra_cogex.apps.constants import INDRA_COGEX_EXTENSION, STATIC_DIR, TEMPLATES_DIR
+from indra_cogex.apps.chat_page import chat_blueprint
 from indra_cogex.apps.curator import curator_blueprint
 from indra_cogex.apps.data_display import data_display_blueprint
 from indra_cogex.apps.gla.gene_blueprint import gene_blueprint
@@ -30,6 +31,7 @@ app.register_blueprint(gene_blueprint)
 app.register_blueprint(metabolite_blueprint)
 app.register_blueprint(data_display_blueprint)
 app.register_blueprint(curator_blueprint)
+app.register_blueprint(chat_blueprint)
 api.init_app(app)
 
 app.extensions[INDRA_COGEX_EXTENSION] = Neo4jClient()

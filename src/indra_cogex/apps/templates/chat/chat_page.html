@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{# This template serves as a non-served template that is intended for the Vue chat app #}
+
+{% block styles %}
+    {# Loads bootstrap css via jinja #}
+    {{ super() }}
+{% endblock %}
+
+{% block container %}
+    {# Consider using the "main" block instead of the "container" block #}
+    {{ super() }}
+    <!--- Chat app -->
+    <noscript>
+      <strong
+        >We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work
+        properly without JavaScript enabled. Please enable it to
+        continue.</strong
+      >
+    </noscript>
+    {# This is where the Vue app is hooked up. Don't change the id here without also changing the id in
+       app.mount("#<id>") in indra_cogex/apps/chat_page/app/src/main.js #}
+    <div id="app"></div>
+    <!-- built files will be auto injected -->
+{% endblock %}
+
+{% block scripts %}
+    {# Loads bootstrap js via jinja #}
+    {{ super() }}
+{% endblock %}

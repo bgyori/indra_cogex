@@ -1,0 +1,467 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+    
+        <!-- Required meta tags -->
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <link rel="icon" href="https://bigmech.s3.amazonaws.com/indra-db/favicon.ico">
+
+        
+    
+    
+            <!-- Bootstrap CSS -->
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/css/bootstrap.min.css" integrity="sha384-zCbKRCUGaJDkqS1kPbPd7TveP5iyJE0EjAuZQTgFLD2ylzuqKfdKlfG/eSrtxUkn" crossorigin="anonymous">
+            <style>
+                html, body {
+                    height: 100%;
+                }
+
+                body {
+                    display: flex;
+                    flex-flow: column;
+                }
+
+                .footer {
+                    margin-top: auto;
+                    padding-top: 1em;
+                    background-color: #f5f5f5;
+                }
+            </style>
+        
+
+
+        <script src="https://kit.fontawesome.com/4c86883252.js" crossorigin="anonymous"></script>
+        <title></title>
+    
+</head>
+<body >
+<style>
+    #overlay {
+        position: fixed;
+        display: none;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 2048;
+        cursor: pointer;
+    }
+
+    #overlay-form-div {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        font-size: 40px;
+        color: black;
+        background-color: lightgray;
+        border-radius: 4px;
+        transform: translate(-50%, -50%);
+        -ms-transform: translate(-50%, -50%);
+        padding: 1em;
+        max-width: 15em;
+    }
+
+    .overlay-form {
+        padding: 1em;
+    }
+
+    #x-out {
+        border-radius: 25px;
+        height: 50px;
+        width: 50px;
+        position: absolute;
+        top: 30px;
+        right: 30px;
+    }
+
+    .auth-tab {
+        background-color: white;
+        border-radius: 4px;
+    }
+
+    #overlay-message {
+        font-size: 9pt;
+        color: #803030;
+        max-width: 10em;
+    }
+</style>
+<script>
+    let AUTH_URLS = {
+        'login': "/login",
+        'register': "/register",
+        'logout': "/logout"
+    };
+
+    function report_login_result(msg) {
+        console.log(msg);
+        document.querySelector('#overlay-message').textContent = msg;
+    }
+
+    async function post_auth(action, json, on_complete) {
+        const resp = await fetch(AUTH_URLS[action], {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(json)
+        });
+        console.log(resp);
+        const resp_json = await resp.json();
+        on_complete(resp_json, resp);
+    }
+
+    function clear(item, email=true, password=true) {
+
+        // Clear the password
+        if (password) {
+            if (item.type.value === 'register') {
+                item.password0.value = null;
+                item.password1.value = null;
+            }
+            else {
+                item.password.value = null;
+            }
+        }
+
+        // Clear the email
+        if (email) {
+            item.email.value = null;
+        }
+    }
+
+    function reset_tabs() {
+        const login_classes =
+            document.querySelector('#nav-login').classList;
+        login_classes.add('active');
+        login_classes.add('show');
+
+        const login_tab_classes =
+            document.querySelector('#nav-login-tab').classList;
+        login_tab_classes.add('active');
+        login_tab_classes.add('show');
+
+        const register_classes =
+            document.querySelector('#nav-register').classList;
+        register_classes.remove('active');
+        register_classes.remove('show');
+
+        const register_tab_classes =
+            document.querySelector('#nav-register-tab').classList;
+        register_tab_classes.remove('active');
+        register_tab_classes.remove('show');
+    }
+
+    function login(success_callback=null, failure_callback=null,
+                   checked=false) {
+        /// If we haven't already...
+        if (!checked) {
+            // double check to see if we're already logged in.
+            post_auth('login', {}, (resp_json, resp) => {
+                if (resp.status === 200)
+                    success_callback('login', resp_json);
+                else
+                    return login(success_callback, failure_callback, true);
+                return false;
+            });
+            return false;
+        }
+
+        // Prep the overlay.
+        const overlay = document.querySelector('#overlay');
+        document.querySelector('#x-out').onclick = () => {
+            // Abort the submit
+            overlay.style.display = "none";
+            return false;
+        };
+        document.querySelectorAll('.overlay-form').forEach((item, index) => {
+            item.onsubmit = function () {
+                try {
+                    // Log the result
+                    console.log(`Got user email, ${this.email.value}, and password to ${this.type.value}`);
+
+                    if (this.type.value === 'register') {
+
+                        // Check the password
+                        if (!this.email.value || !this.password0.value || !this.password1.value) {
+                            report_login_result("Missing email or one of the passwords.");
+                            return false;
+                        } else if (this.password0.value !== this.password1.value) {
+                            clear(this, false);
+                            this.password.value = null;
+                            report_login_result("Passwords don't match.");
+                            return false;
+                        } else if (this.password0.value.length < 8) {
+                            clear(this, false);
+                            report_login_result("Password too short.");
+                            return false;
+                        }
+
+                        this.password = this.password0;
+                    } else {
+                        // Check for an email, if none, reject the form (do nothing)
+                        if (!this.email.value || !this.password.value) {
+                            report_login_result("Missing password or email.");
+                            return false;
+                        }
+                    }
+
+                    post_auth(
+                        this.type.value,
+                        {'email': this.email.value, 'password': this.password.value},
+                        (resp_json, resp) => {
+                            console.log(resp_json);
+
+                            if (resp.status !== 200) {
+                                let msg = resp_json.message;
+                                if (!msg)
+                                    msg = "Unknown Reason";
+                                report_login_result(`Could not ${this.type.value}: ${msg}`);
+
+                                // Clear the password field
+                                clear(this, false);
+
+                                if (failure_callback)
+                                    failure_callback(this.type.value, resp_json);
+                                return false;
+                            }
+
+                            // Clear the form
+                            clear(this);
+
+                            // If this was a successful register, reset the form.
+                            if (this.type.value === 'register')
+                                reset_tabs();
+
+                            // Credentials should now be stored in a cookie if this was a login.
+                            report_login_result(`Successful ${this.type.value}`);
+
+                            // Hide the overlay again.
+                            overlay.style.display = "none";
+
+                            // Call the success callback function.
+                            if (success_callback)
+                                success_callback(this.type.value, resp_json);
+                            return false;
+
+                        }
+                    );
+                } catch (e) {
+                    console.log(`Error while trying to authenticate: ${e}`)
+                }
+                return false;
+            };
+
+            // Popup the overlay
+            overlay.style.display = "block";
+            return false;
+        });
+        return false;
+    }
+
+    function logout(callback) {
+        console.log(`Sending request to logout`);
+        post_auth('logout', {}, () => {return callback()});
+    }
+</script>
+<div id="overlay">
+    <button class="btn btn-danger" id="x-out">x</button>
+    <div id="overlay-form-div">
+        <div style="padding: 1em; text-align: center; margin-left: auto; margin-right: auto;">
+            <img src="https://bigmech.s3.amazonaws.com/indra-db/indralab_bare_logo.png" width="150em">
+            <h1>IndraLab</h1>
+        </div>
+        <div class="container nav-container">
+            <nav>
+                <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                    <a class="nav-item nav-link active show"
+                       id="nav-login-tab"
+                       data-toggle="tab" href="#nav-login" role="tab"
+                       aria-controls="nav-login"
+                       aria-selected="true">Login</a>
+                    <a class="nav-item nav-link" id="nav-register-tab"
+                       data-toggle="tab" href="#nav-register" role="tab"
+                       aria-controls="nav-register"
+                       aria-selected="false">Register</a>
+                </div>
+            </nav>
+        </div>
+        <div class="tab-content" id="overlay-all-forms">
+            <div class="tab-pane auth-tab fade active show" id="nav-login"
+                 role="tabpanel" aria-labelledby="nav-login-tab">
+                <form class="form overlay-form" id="overlay-form-login"
+                      onsubmit="return false;">
+                    <input type="hidden" name="type" value="login">
+                    email <input name="email"
+                                 type='email' class="form-control"
+                                 placeholder="your@email.com">
+                    password <input name="password"
+                                    type='password' class="form-control"
+                                    placeholder="password">
+                    <button class="btn btn-primary" type='submit'
+                            id="overlay-button-login">
+                        Login
+                    </button>
+                </form>
+            </div>
+            <div class="tab-pane auth-tab fade" id="nav-register" role="tabpanel"
+                 aria-labelledby="nav-register-tab">
+                <form class="form overlay-form" id="overlay-form-register"
+                      onsubmit="return false;">
+                    <input type="hidden" name="type" value="register">
+                    email <input name="email"
+                                 type='email' class="form-control"
+                                 placeholder="your@email.com">
+                    password <input name="password0"
+                                    type='password' class="form-control"
+                                    placeholder="password">
+                    <input name="password1" type='password'
+                           class="form-control" placeholder="repeat password">
+                    <button class="btn btn-primary" type='submit'
+                            id="overlay-button-register">
+                        Register
+                    </button>
+                </form>
+
+            </div>
+        </div>
+        <small id="overlay-message"></small>
+    </div>
+</div>
+<script>
+    function handle_success(type, resp_data) {
+        if (type === "login") {
+            const btn = document.querySelector("#loginout-button");
+            btn.innerHTML = 'Logout';
+            btn.onclick = () => {
+                return trigger_logout()
+            };
+            report_login_result(''); // clear the login result message
+        } else if (type === "register") {
+            trigger_login()
+        } else { // logout
+            const btn = document.querySelector("#loginout-button");
+            btn.innerHTML = 'Login';
+            btn.onclick = () => {
+                return trigger_login()
+            };
+        }
+    }
+
+    function trigger_login(type = null, data = null) {
+        return login(handle_success, trigger_unchecked_login)
+    }
+
+    function trigger_unchecked_login(type = null, data = null) {
+        return login(handle_success, trigger_unchecked_login, true)
+    }
+
+    function trigger_logout() {
+        return logout(handle_success)
+    }
+</script>
+
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="/">
+        <img src="https://bigmech.s3.amazonaws.com/indra-db/indralab_bare_logo.png" width="30" height="30" alt="">
+        INDRA Discovery
+    </a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+        
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                
+                <a class="nav-link" href="/gene/discrete">Discrete GSEA</a>
+            </li>
+            <li class="nav-item">
+                
+                <a class="nav-link" href="/gene/signed">Signed GSEA</a>
+            </li>
+            <li class="nav-item">
+                
+                <a class="nav-link" href="/gene/continuous">Continuous GSEA</a>
+            </li>
+            <li class="nav-item">
+                
+                <a class="nav-link" href="/metabolite/discrete">Discrete MSEA</a>
+            </li>
+            <li class="nav-item">
+                
+                <a class="nav-link" href="/apidocs">API Docs</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#about">About</a>
+            </li>
+        </ul>
+    </div>
+    <div class="justify-content-end">
+        <button class="btn btn-primary"
+                onclick="return trigger_login();"
+                id="loginout-button">
+            
+                Login
+            
+        </button>
+    </div>
+</nav>
+
+
+    <div class="container" style="margin-top: 50px; margin-bottom: 50px">
+        
+            
+        
+        <div class="row justify-content-center">
+            <div class="col-md-10 col-lg-10">
+                
+    
+    
+    <!--- Chat app -->
+    <noscript>
+      <strong
+        >We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work
+        properly without JavaScript enabled. Please enable it to
+        continue.</strong
+      >
+    </noscript>
+    
+    <div id="app"></div>
+    <!-- built files will be auto injected -->
+
+            </div>
+        </div>
+    </div>
+
+
+<footer class="footer" id="about">
+    <div class="container">
+    <span class="float-right">
+        <a href="#">Back to top</a>
+    </span>
+    <p class="small text-center text-muted">
+        Developed by the <a href="https://indralab.github.io">INDRA Lab</a> in the
+        <a href="https://hits.harvard.edu">Harvard Program in Therapeutic Science (HiTS)</a>.<br/>
+        INDRA CoGEx (Context Graph Extension) is an automatically assembled biomedical knowledge graph which integrates
+        causal mechanisms from INDRA with non-causal contextual relations including properties, ontology, and data.<br/>
+        INDRA CoGEx is funded by the <b>DARPA Young Faculty Award W911NF2010255 (PI: Benjamin M. Gyori).</b><br/>
+    </p>
+    </div>
+</footer>
+
+
+    
+    
+    <!-- Optional JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/js/bootstrap.min.js" integrity="sha384-VHvPCCyXqtD5DqJeNxl2dtTyhF78xXNXdkwX1CZeRusQfRKp+tA7hAShOK/B/fQ2" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/gh/xcash/bootstrap-autocomplete@v2.3.7/dist/latest/bootstrap-autocomplete.min.js"></script>
+
+
+</body>
+</html>

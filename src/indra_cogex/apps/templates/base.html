@@ -97,6 +97,9 @@
                 <a class="nav-link" href="/metabolite/discrete">Discrete MSEA</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" href="/chat">Chat app</a>
+            </li>
+            <li class="nav-item">
                 {#
                 {% if "restx_doc" in blueprints %}
                     <a class="nav-link" href="{{ url_for("restx_doc.doc") }}">API</a>
@@ -143,28 +146,17 @@
 
 <footer class="footer" id="about">
     <div class="container">
-        {% if pusher_app_key %}
-        <div class="row">
-            <div class="col-md-8">
-        {% endif %}
-                <span class="float-right">
-                    <a href="#">Back to top</a>
-                </span>
-                <p class="small text-center text-muted">
-                    Developed by the <a href="https://indralab.github.io">INDRA Lab</a> in the
-                    <a href="https://hits.harvard.edu">Harvard Program in Therapeutic Science (HiTS)</a>.<br/>
-                    INDRA CoGEx (Context Graph Extension) is an automatically assembled biomedical knowledge graph which integrates
-                    causal mechanisms from INDRA with non-causal contextual relations including properties, ontology, and data.<br/>
-                    INDRA CoGEx is funded by the <b>DARPA Young Faculty Award W911NF2010255 (PI: Benjamin M. Gyori).</b><br/>
-                </p>
-            </div>
-            <div class="col-md-4">
-                {# empty space #}
-            </div>
-    {% if pusher_app_key %}
-        </div>
+    <span class="float-right">
+        <a href="#">Back to top</a>
+    </span>
+    <p class="small text-center text-muted">
+        Developed by the <a href="https://indralab.github.io">INDRA Lab</a> in the
+        <a href="https://hits.harvard.edu">Harvard Program in Therapeutic Science (HiTS)</a>.<br/>
+        INDRA CoGEx (Context Graph Extension) is an automatically assembled biomedical knowledge graph which integrates
+        causal mechanisms from INDRA with non-causal contextual relations including properties, ontology, and data.<br/>
+        INDRA CoGEx is funded by the <b>DARPA Young Faculty Award W911NF2010255 (PI: Benjamin M. Gyori).</b><br/>
+    </p>
     </div>
-    {% endif %}
 </footer>
 
 {% block scripts %}
