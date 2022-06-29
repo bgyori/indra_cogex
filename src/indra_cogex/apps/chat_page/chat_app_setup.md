@@ -17,6 +17,8 @@ everything is set up correctly, these should be the only steps to update the Vue
 
 #### Build dists for apps
 
+_(This is part of the deployment script)_
+
 The full build process is documented in the Vue [readme file](./app/README.md).
 
 ##### Build dist for indralab-vue
@@ -30,11 +32,15 @@ The full build process is documented in the Vue [readme file](./app/README.md).
 
 #### Upload app to S3
 
+_(This is part of the deployment script)_
+
 - Upload the _content_ of the `dist` directory for the chat app into a directory on S3 **with the same name as is 
   configured as `publicPath` in the Vue app's `vue.config.js` file**.
 - Make sure that the content is publicly accessible (and that the bucket allows public access).
 
 #### Set up a new origin in CloudFront for the content served from the S3 bucket
+
+_(This section only has to be done once)_
 
 In the Distributions console for `discovery.indra.bio`, go to the `Origins` tab and click "Create origin":
 
@@ -44,6 +50,8 @@ In the Distributions console for `discovery.indra.bio`, go to the `Origins` tab 
 - Click "Create origin" and wait for the origin to be created.
 
 #### Associate the new origin with a new Behavior
+
+_(This section only has to be done once per Behavior)_
 
 In the Distribution console, click on the **Behaviors** tab, then click on the **Create behavior** button.
 
@@ -57,6 +65,8 @@ In the Distribution console, click on the **Behaviors** tab, then click on the *
   [here](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html)._
 
 #### Create a CloudFront Function to rewrite the URI
+
+_(This section only has to be done for a new setup or for updates to the rewrite function)_
 
 See the AWS documentation
 [here](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/functions-tutorial.html) and
@@ -122,7 +132,11 @@ Once done with entering the code:
 
 #### Invalidating the CloudFront cache manually
 
-Invalidate the CloudFront cache manually by going to https://us-east-1.console.aws.amazon.com/cloudfront/v3/home?region=us-east-1#/distributions and then:
+_(This section has to be done every time there has been a new upload to the S3 folder hosting the app in the bigmech 
+bucket)_
+
+Invalidate the CloudFront cache manually by going to
+https://us-east-1.console.aws.amazon.com/cloudfront/v3/home?region=us-east-1#/distributions and then:
   - Log in to the AWS console if needed
   - Click the distribution for discovery.indra.bio
   - Click the invalidations tab
@@ -134,6 +148,5 @@ Invalidate the CloudFront cache manually by going to https://us-east-1.console.a
 #### Restrict access to bucket to only the CloudFront distribution (optional)
 
 This can be done in order to restrict access to the bucket itself but allow cloudfront to serve the content. This 
-includes setting up a new user using AWS IAM and where the user has access to the bucket. See more
+includes setting up a new user using AWS IAM where that user has access to the bucket. See more
 [here](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html).
-and here 
