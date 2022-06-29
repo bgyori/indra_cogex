@@ -17,16 +17,15 @@ everything is set up correctly, these should be the only steps to update the Vue
 
 #### Build dists for apps
 
-_(This is part of the deployment script)_
-
 The full build process is documented in the Vue [readme file](./app/README.md).
 
 ##### Build dist for indralab-vue
-
 - Build the `indralab-vue` dist by running `npm run build` in the root directory of the `indralab-vue` repository
 - Pack the build by running `npm pack`. This will create a .tgz file that can be used as a standalone local installation.
 
 ##### Build dist for the chat app
+_(This is part of the deployment script)_
+
 - Install the `indralab-vue` dist: in the root directory of the Vue chat app, run `npm install /path/to/indralab-vue/indralab-vue-0.0.1.tgz`
 - Build the Vue chat app: in the root directory of the Vue chat app, run `npm run build`
 
