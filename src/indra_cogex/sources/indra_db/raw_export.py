@@ -162,7 +162,7 @@ if __name__ == "__main__":
     # These can be done from the command line, in the folder
     # that corresponds to pystow.join('indra', 'db')
 
-    """
+    command_line = """
     Text refs
 
       psql -d indradb_test -h indradb-refresh.cwcetxbvbgrf.us-east-1.rds.amazonaws.com
@@ -188,6 +188,16 @@ if __name__ == "__main__":
 
     Time estimate: ~30-40 mins
     """
+
+    if any(not f.exists() for f in (reading_text_content_fname,
+                                    text_refs_fname.exists,
+                                    raw_stmts_fname.exists)):
+        missing = [f.as_posix() for f in (reading_text_content_fname,
+                                 text_refs_fname,
+                                 raw_stmts_fname) if not f.exists()]
+        print(command_line)
+        raise FileNotFoundError(f"{', '.join(missing)} missing, please run "
+                                f"the command above to get them.")
 
     # STAGE 1: We need to run statement distillation to figure out which
     # raw statements we should ignore based on the text content and
