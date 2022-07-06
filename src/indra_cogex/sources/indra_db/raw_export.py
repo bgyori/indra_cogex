@@ -186,7 +186,7 @@ if __name__ == "__main__":
       -U tester -c "COPY (SELECT id, db_info_id, reading_id, encode(json::bytea, 'escape') FROM public.raw_statements) 
       TO STDOUT" | gzip > raw_statements.tsv.gz
 
-    Time estimate: ?? mins
+    Time estimate: ~30-40 mins
     """
 
     # STAGE 1: We need to run statement distillation to figure out which
