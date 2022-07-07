@@ -219,6 +219,7 @@ if __name__ == "__main__":
         drop_readings = set()
         trid = df["text_ref_id"].iloc[0]
         contents = defaultdict(list)
+
         # This takes around 1.5 hours
         for row in tqdm.tqdm(df.itertuples(), total=len(df)):
             if row.text_ref_id != trid:
@@ -240,11 +241,12 @@ if __name__ == "__main__":
                 )
             )
             trid = row.text_ref_id
+
         with open(drop_readings_fname, "wb") as fh:
             pickle.dump(drop_readings, fh)
 
         # Dump mapping of reading_id to text_ref_id
-        reading_id_to_text_ref_id = dict(zip(df[0], df[3]))
+        reading_id_to_text_ref_id = dict(zip(df.reading_id, df.text_ref_id))
         with reading_to_text_ref_map.open("wb") as fh:
             pickle.dump(reading_id_to_text_ref_id, fh)
 
