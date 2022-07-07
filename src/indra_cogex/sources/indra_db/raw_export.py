@@ -16,6 +16,7 @@ reading_text_content_fname = base_folder.join(name="reading_text_content_meta.ts
 text_refs_fname = base_folder.join(name="text_refs_principal.tsv.gz")
 raw_stmts_fname = base_folder.join(name="raw_statements.tsv.gz")
 drop_readings_fname = base_folder.join(name="drop_readings.pkl")
+reading_to_text_ref_map = base_folder.join(name="reading_to_text_ref_map.pkl")
 
 processed_stmts_fname = base_folder.join(name="processed_statements.tsv.gz")
 grounded_stmts_fname = base_folder.join(name="grounded_statements.tsv.gz")
@@ -189,12 +190,9 @@ if __name__ == "__main__":
     Time estimate: ~30-40 mins
     """
 
-    if any(not f.exists() for f in (reading_text_content_fname,
-                                    text_refs_fname.exists,
-                                    raw_stmts_fname.exists)):
-        missing = [f.as_posix() for f in (reading_text_content_fname,
-                                 text_refs_fname,
-                                 raw_stmts_fname) if not f.exists()]
+    needed_files = [reading_text_content_fname, text_refs_fname, raw_stmts_fname]
+    if any(not f.exists() for f in needed_files):
+        missing = [f.as_posix() for f in needed_files if not f.exists()]
         print(command_line)
         raise FileNotFoundError(f"{', '.join(missing)} missing, please run "
                                 f"the command above to get them.")
@@ -244,12 +242,20 @@ if __name__ == "__main__":
             trid = row.text_ref_id
         with open(drop_readings_fname, "wb") as fh:
             pickle.dump(drop_readings, fh)
+
+        # Dump mapping of reading_id to text_ref_id
+        reading_id_to_text_ref_id = dict(zip(df[0], df[3]))
+        with reading_to_text_ref_map.open("wb") as fh:
+            pickle.dump(reading_id_to_text_ref_id, fh)
+
     else:
         with open(drop_readings_fname, "rb") as fh:
             drop_readings = pickle.load(fh)
+        # Get mapping of reading_id to text_ref_id
+        with reading_to_text_ref_map.open("rb") as fh:
+            reading_id_to_text_ref_id = pickle.load(fh)
 
     text_refs = load_text_refs_by_trid(text_refs_fname)
-    reading_id_to_text_ref_id = dict(zip(df[0], df[3]))
 
     # STAGE 2: We now need to iterate over raw statements and do preassembly
     source_counts = defaultdict(lambda: defaultdict(int))
