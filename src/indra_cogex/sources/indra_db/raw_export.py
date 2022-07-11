@@ -333,7 +333,8 @@ if __name__ == "__main__":
                 # shelf first and increment the value
                 if stmt_hash in used_hashes:
                     # Read a copy of the current value from the shelf
-                    src_count_dict = source_counts[stmt_hash]
+                    # NOTE: keys have to be str
+                    src_count_dict = source_counts[str(stmt_hash)]
                     if src_api in src_count_dict:
                         src_count_dict[src_api] += 1
                     else:
@@ -343,7 +344,8 @@ if __name__ == "__main__":
                     src_count_dict = {src_api: 1}
 
                 # Write the new or updated dict to the shelf
-                source_counts[stmt_hash] = src_count_dict
+                # NOTE: keys have to be str
+                source_counts[str(stmt_hash)] = src_count_dict
 
                 # Save the hash to the set of used hashes
                 used_hashes.add(stmt_hash)
