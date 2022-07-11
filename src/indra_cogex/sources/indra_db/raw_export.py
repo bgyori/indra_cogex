@@ -1,19 +1,25 @@
-from collections import defaultdict
 import csv
 import gzip
 import json
+from pathlib import Path
+
 import tqdm
 import codecs
 import pandas
 import pickle
 import pystow
+import shelve
+from typing import Union, Dict
 from indra.util import batch_iter
+from collections import defaultdict
 from indra.statements import stmts_from_json, stmts_to_json
 from indra.tools import assemble_corpus as ac
 
 base_folder = pystow.module("indra", "db")
 reading_text_content_fname = base_folder.join(name="reading_text_content_meta.tsv.gz")
 text_refs_fname = base_folder.join(name="text_refs_principal.tsv.gz")
+text_refs_shelf_fname = base_folder.join(name="text_refs_by_trid.shelf")
+source_counts_shelf_fname = base_folder.join(name="source_counts.shelf")
 raw_stmts_fname = base_folder.join(name="raw_statements.tsv.gz")
 drop_readings_fname = base_folder.join(name="drop_readings.pkl")
 reading_to_text_ref_map = base_folder.join(name="reading_to_text_ref_map.pkl")
@@ -22,6 +28,9 @@ processed_stmts_fname = base_folder.join(name="processed_statements.tsv.gz")
 grounded_stmts_fname = base_folder.join(name="grounded_statements.tsv.gz")
 unique_stmts_fname = base_folder.join(name="unique_statements.tsv.gz")
 source_counts_fname = base_folder.join(name="source_counts.pkl")
+
+
+TextRefs = Dict[int, Dict[str, Union[str, int]]]
 
 
 class StatementJSONDecodeError(Exception):
@@ -104,7 +113,7 @@ def reader_prioritize(reader_contents):
     return drop
 
 
-def load_text_refs_by_trid(fname: str):
+def load_text_refs_by_trid(fname: str) -> TextRefs:
     text_refs = {}
     for line in tqdm.tqdm(
         gzip.open(fname, "rt", encoding="utf-8"),
@@ -120,6 +129,23 @@ def load_text_refs_by_trid(fname: str):
                 d[id_name] = id_val
         text_refs[int(ids[0])] = d
     return text_refs
+
+
+def run_shelving():
+    text_refs_dict = load_text_refs_by_trid(text_refs_fname.as_posix())
+    shelf_text_refs_by_trid(text_refs_dict=text_refs_dict,
+                            fname=text_refs_shelf_fname)
+
+
+def shelf_text_refs_by_trid(text_refs_dict: TextRefs, fname: Path):
+    with shelve.open(fname.as_posix(), "c") as shelf:
+        for k, v in tqdm.tqdm(text_refs_dict.items()):
+            # Has to store key as str
+            shelf[str(k)] = v
+
+
+def load_text_refs_by_trid_shelf(fname: Path) -> shelve.Shelf[str, Dict[str, str]]:
+    return shelve.open(fname.as_posix(), "r")
 
 
 def get_update(start_date):
@@ -197,6 +223,10 @@ if __name__ == "__main__":
         raise FileNotFoundError(f"{', '.join(missing)} missing, please run "
                                 f"the command above to get them.")
 
+    if not text_refs_shelf_fname.exists():
+        print("Shelving text refs")
+        run_shelving()
+
     # STAGE 1: We need to run statement distillation to figure out which
     # raw statements we should ignore based on the text content and
     # reader version used to produce it.
@@ -257,10 +287,16 @@ if __name__ == "__main__":
         with reading_to_text_ref_map.open("rb") as fh:
             reading_id_to_text_ref_id = pickle.load(fh)
 
-    text_refs = load_text_refs_by_trid(text_refs_fname)
+    text_refs = load_text_refs_by_trid_shelf(text_refs_shelf_fname)
 
     # STAGE 2: We now need to iterate over raw statements and do preassembly
-    source_counts = defaultdict(lambda: defaultdict(int))
+    # source_counts = defaultdict(lambda: defaultdict(int))
+    # Create a shelf for the source counts; setting writeback = False will
+    # save memory
+    source_counts = shelve.open(
+        filename=source_counts_shelf_fname.as_posix(), flag="c"
+    )
+    used_hashes = set()  # Save which hashes we've seen
     with gzip.open(raw_stmts_fname, "rt") as fh, gzip.open(
         processed_stmts_fname, "wt"
     ) as fh_out:
@@ -276,7 +312,8 @@ if __name__ == "__main__":
                         continue
                     text_ref_id = reading_id_to_text_ref_id.get(int(reading_id))
                     if text_ref_id:
-                        refs = text_refs.get(text_ref_id)
+                        # Shelf keys are strings -> convert to str
+                        refs = text_refs.get(str(text_ref_id))
                 stmt_json = load_statement_json(stmt_json_raw)
                 if refs:
                     stmt_json["evidence"][0]["text_refs"] = refs
@@ -287,13 +324,43 @@ if __name__ == "__main__":
             stmts = ac.fix_invalidities(stmts, in_place=True)
             stmts = ac.map_grounding(stmts)
             stmts = ac.map_sequence(stmts)
+
             for stmt in stmts:
                 stmt_hash = stmt.get_hash(refresh=True)
-                source_counts[stmt_hash][stmt.evidence[0].source_api] += 1
+                src_api = stmt.evidence[0].source_api
+
+                # If we've seen this hash, read the current value from the
+                # shelf first and increment the value
+                if stmt_hash in used_hashes:
+                    # Read a copy of the current value from the shelf
+                    src_count_dict = source_counts[stmt_hash]
+                    if src_api in src_count_dict:
+                        src_count_dict[src_api] += 1
+                    else:
+                        src_count_dict[src_api] = 1
+                else:
+                    # Create a new entry for source counts in the shelf
+                    src_count_dict = {src_api: 1}
+
+                # Write the new or updated dict to the shelf
+                source_counts[stmt_hash] = src_count_dict
+
+                # Save the hash to the set of used hashes
+                used_hashes.add(stmt_hash)
             rows = [(stmt.get_hash(), json.dumps(stmt.to_json())) for stmt in stmts]
             writer.writerows(rows)
-    with open(source_counts_fname, "wb") as fh:
-        pickle.dump(source_counts, fh)
+
+    # Close the shelves, delete reference to used_hashes
+    text_refs.close()
+    source_counts.close()
+    del used_hashes
+
+    # Cast defaultdict to dict and pickle it
+    # source_counts = dict(source_counts)
+    # with open(source_counts_fname, "wb") as fh:
+    #     pickle.dump(source_counts, fh)
+    # Can remove reference to source counts here
+    # del source_counts
 
     # STAGE 3: create grounded and unique dumps
     with gzip.open(processed_stmts_fname, "rt") as fh, gzip.open(
