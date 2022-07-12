@@ -1,3 +1,4 @@
+import logging
 import os
 from collections import defaultdict
 import csv
@@ -23,6 +24,9 @@ processed_stmts_fname = base_folder.join(name="processed_statements.tsv.gz")
 grounded_stmts_fname = base_folder.join(name="grounded_statements.tsv.gz")
 unique_stmts_fname = base_folder.join(name="unique_statements.tsv.gz")
 source_counts_fname = base_folder.join(name="source_counts.pkl")
+
+
+logger = logging.getLogger(__name__)
 
 
 class StatementJSONDecodeError(Exception):
