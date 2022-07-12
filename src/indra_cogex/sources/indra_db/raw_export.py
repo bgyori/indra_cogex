@@ -1,3 +1,4 @@
+import os
 import csv
 import gzip
 import json
@@ -222,6 +223,9 @@ if __name__ == "__main__":
         print(command_line)
         raise FileNotFoundError(f"{', '.join(missing)} missing, please run "
                                 f"the command above to get them.")
+
+    if not os.environ.get('INDRA_DB_LITE_LOCATION'):
+        raise ValueError("Environment variable 'INDRA_DB_LITE_LOCATION' not set")
 
     if not text_refs_shelf_fname.exists():
         print("Shelving text refs")
