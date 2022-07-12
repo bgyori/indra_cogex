@@ -200,7 +200,7 @@ if __name__ == "__main__":
         missing = [f.as_posix() for f in needed_files if not f.exists()]
         print(command_line)
         raise FileNotFoundError(f"{', '.join(missing)} missing, please run "
-                                f"the command above to get them.")
+                                f"the command(s) above to get them.")
 
     if not os.environ.get('INDRA_DB_LITE_LOCATION'):
         raise ValueError("Environment variable 'INDRA_DB_LITE_LOCATION' not set")
@@ -265,48 +265,58 @@ if __name__ == "__main__":
         with reading_to_text_ref_map.open("rb") as fh:
             reading_id_to_text_ref_id = pickle.load(fh)
 
-    text_refs = load_text_refs_by_trid(text_refs_fname)
+    text_refs = load_text_refs_by_trid(text_refs_fname.as_posix())
 
     # STAGE 2: We now need to iterate over raw statements and do preassembly
-    source_counts = defaultdict(lambda: defaultdict(int))
-    with gzip.open(raw_stmts_fname, "rt") as fh, gzip.open(
-        processed_stmts_fname, "wt"
-    ) as fh_out:
-        reader = csv.reader(fh, delimiter="\t")
-        writer = csv.writer(fh_out, delimiter="\t")
-        for lines in tqdm.tqdm(batch_iter(reader, 10000), total=7000):
-            stmts_jsons = []
-            for raw_stmt_id, db_info_id, reading_id, stmt_json_raw in lines:
-                refs = None
-                if reading_id != "\\N":
-                    # Skip if this is for a dropped reading
-                    if int(reading_id) in drop_readings:
-                        continue
-                    text_ref_id = reading_id_to_text_ref_id.get(int(reading_id))
-                    if text_ref_id:
-                        refs = text_refs.get(text_ref_id)
-                stmt_json = load_statement_json(stmt_json_raw)
-                if refs:
-                    stmt_json["evidence"][0]["text_refs"] = refs
-                    if refs.get("PMID"):
-                        stmt_json["evidence"][0]["pmid"] = refs["PMID"]
-                stmts_jsons.append(stmt_json)
-            stmts = stmts_from_json(stmts_jsons)
-            stmts = ac.fix_invalidities(stmts, in_place=True)
-            stmts = ac.map_grounding(stmts)
-            stmts = ac.map_sequence(stmts)
-            for stmt in stmts:
-                stmt_hash = stmt.get_hash(refresh=True)
-                source_counts[stmt_hash][stmt.evidence[0].source_api] += 1
-            rows = [(stmt.get_hash(), json.dumps(stmt.to_json())) for stmt in stmts]
-            writer.writerows(rows)
+    if not processed_stmts_fname.exists() or not source_counts_fname.exists():
+        logger.info("Preassembling statements and collecting source counts")
+        source_counts = defaultdict(lambda: defaultdict(int))
+        with gzip.open(raw_stmts_fname, "rt") as fh, gzip.open(
+            processed_stmts_fname, "wt"
+        ) as fh_out:
+            reader = csv.reader(fh, delimiter="\t")
+            writer = csv.writer(fh_out, delimiter="\t")
+            for lines in tqdm.tqdm(batch_iter(reader, 10000), total=7000):
+                stmts_jsons = []
+                for raw_stmt_id, db_info_id, reading_id, stmt_json_raw in lines:
+                    refs = None
+                    if reading_id != "\\N":
+                        # Skip if this is for a dropped reading
+                        if int(reading_id) in drop_readings:
+                            continue
+                        text_ref_id = reading_id_to_text_ref_id.get(int(reading_id))
+                        if text_ref_id:
+                            refs = text_refs.get(text_ref_id)
+                    stmt_json = load_statement_json(stmt_json_raw)
+                    if refs:
+                        stmt_json["evidence"][0]["text_refs"] = refs
+                        if refs.get("PMID"):
+                            stmt_json["evidence"][0]["pmid"] = refs["PMID"]
+                    stmts_jsons.append(stmt_json)
+                stmts = stmts_from_json(stmts_jsons)
+                stmts = ac.fix_invalidities(stmts, in_place=True)
+                stmts = ac.map_grounding(stmts)
+                stmts = ac.map_sequence(stmts)
+                for stmt in stmts:
+                    stmt_hash = stmt.get_hash(refresh=True)
+                    source_counts[stmt_hash][stmt.evidence[0].source_api] += 1
+                rows = [(stmt.get_hash(), json.dumps(stmt.to_json())) for stmt in stmts]
+                writer.writerows(rows)
 
-    # Cast defaultdict to dict and pickle it
-    source_counts = dict(source_counts)
-    with open(source_counts_fname, "wb") as fh:
-        pickle.dump(source_counts, fh)
-    # Can remove reference to source counts here
-    del source_counts
+        # Cast defaultdict to dict and pickle it
+        logger.info("Dumping source counts")
+        source_counts = dict(source_counts)
+        with open(source_counts_fname.as_posix(), "wb") as fh:
+            pickle.dump(source_counts, fh)
+        # We can now remove reference to source counts
+        del source_counts
+
+    else:
+        logger.info(
+            f"Statements already preassembled at "
+            f"{processed_stmts_fname.as_posix()}, source counts "
+            f"already dumped to {source_counts_fname.as_posix()}, skipping..."
+        )
 
     # STAGE 3: create grounded and unique dumps
     with gzip.open(processed_stmts_fname, "rt") as fh, gzip.open(
