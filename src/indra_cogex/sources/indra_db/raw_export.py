@@ -319,25 +319,34 @@ if __name__ == "__main__":
         )
 
     # STAGE 3: create grounded and unique dumps
-    with gzip.open(processed_stmts_fname, "rt") as fh, gzip.open(
-        grounded_stmts_fname, "wt"
-    ) as fh_out_gr, gzip.open(unique_stmts_fname, "wt") as fh_out_uniq:
-        seen_hashes = set()
-        reader = csv.reader(fh, delimiter="\t")
-        writer_gr = csv.writer(fh_out_gr, delimiter="\t")
-        writer_uniq = csv.writer(fh_out_uniq, delimiter="\t")
-        for sh, stmt_json_str in tqdm.tqdm(reader, total=65102088):
-            stmt = stmts_from_json([load_statement_json(stmt_json_str)])[0]
-            if len(stmt.real_agent_list()) < 2:
-                continue
-            if all(
-                (set(agent.db_refs) - {"TEXT", "TEXT_NORM"})
-                for agent in stmt.real_agent_list()
-            ):
-                writer_gr.writerow((sh, stmt_json_str))
-                if sh not in seen_hashes:
-                    writer_uniq.writerow((sh, stmt_json_str))
-            seen_hashes.add(sh)
+    if not grounded_stmts_fname.exists() or not unique_stmts_fname.exists():
+        with gzip.open(processed_stmts_fname, "rt") as fh, gzip.open(
+            grounded_stmts_fname, "wt"
+        ) as fh_out_gr, gzip.open(unique_stmts_fname, "wt") as fh_out_uniq:
+            seen_hashes = set()
+            reader = csv.reader(fh, delimiter="\t")
+            writer_gr = csv.writer(fh_out_gr, delimiter="\t")
+            writer_uniq = csv.writer(fh_out_uniq, delimiter="\t")
+            for sh, stmt_json_str in tqdm.tqdm(reader, total=65102088):
+                stmt = stmts_from_json([load_statement_json(stmt_json_str)])[0]
+                if len(stmt.real_agent_list()) < 2:
+                    continue
+                if all(
+                    (set(agent.db_refs) - {"TEXT", "TEXT_NORM"})
+                    for agent in stmt.real_agent_list()
+                ):
+                    writer_gr.writerow((sh, stmt_json_str))
+                    if sh not in seen_hashes:
+                        writer_uniq.writerow((sh, stmt_json_str))
+                seen_hashes.add(sh)
+    else:
+        logger.info(
+            f"Grounded and unique statements already dumped at "
+            f"{grounded_stmts_fname.as_posix()} and "
+            f"{unique_stmts_fname.as_posix()}, skipping..."
+        )
+
+    logger.info(f"Script completed")
 
 
 """Notes
