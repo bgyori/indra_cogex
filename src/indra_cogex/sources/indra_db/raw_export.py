@@ -296,8 +296,13 @@ if __name__ == "__main__":
                 source_counts[stmt_hash][stmt.evidence[0].source_api] += 1
             rows = [(stmt.get_hash(), json.dumps(stmt.to_json())) for stmt in stmts]
             writer.writerows(rows)
+
+    # Cast defaultdict to dict and pickle it
+    source_counts = dict(source_counts)
     with open(source_counts_fname, "wb") as fh:
         pickle.dump(source_counts, fh)
+    # Can remove reference to source counts here
+    del source_counts
 
     # STAGE 3: create grounded and unique dumps
     with gzip.open(processed_stmts_fname, "rt") as fh, gzip.open(
