@@ -328,7 +328,6 @@ if __name__ == "__main__":
         writer_uniq = csv.writer(fh_out_uniq, delimiter="\t")
         for sh, stmt_json_str in tqdm.tqdm(reader, total=65102088):
             stmt = stmts_from_json([load_statement_json(stmt_json_str)])[0]
-            stmt = load_statement_json(stmt_json_str)
             if len(stmt.real_agent_list()) < 2:
                 continue
             if all(
