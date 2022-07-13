@@ -3,6 +3,7 @@ import gzip
 import itertools
 import math
 import json
+import pickle
 from typing import List, Set, Tuple
 
 import networkx as nx
@@ -11,19 +12,22 @@ import codecs
 import pystow
 import sqlite3
 import subprocess
-from collections import defaultdict
+from collections import defaultdict, Counter
+
+from indra.belief import BeliefEngine
 from indra.util import batch_iter
 from indra.ontology.bio import bio_ontology
-from indra.statements import Statement
+from indra.statements import Statement, Evidence
 from indra.statements.io import stmt_from_json
 from indra.preassembler import Preassembler
 
-from .raw_export import unique_stmts_fname
+from .raw_export import unique_stmts_fname, source_counts_fname
 
 StmtList = List[Statement]
 
 base_folder = pystow.module("indra", "db")
 refinements_fname = base_folder.join(name="refinements.tsv.gz")
+belief_scores_pkl_fname = base_folder.join(name="belief_scores.pkl")
 
 
 class StatementJSONDecodeError(Exception):
@@ -132,15 +136,68 @@ def belief_calc(refinements_set: Set[Tuple[int, int]]):
       - Pass mock evidences based on source counts (or is there an API directly
         for source counts??) to INDRA's Belief Engine to get a belief score
     - Dump dict of stmt_hash: belief score values
+
+    Todo: bring annotations in to the evidence objects passed to the Belief Engine
     """
 
     # Make a networkx graph of the refinements
-    dg = nx.DiGraph()
+    refinements_graph = nx.DiGraph()
 
-    # Edges go from refiner to refined, i.e.
-    dg.add_edges_from(refinements_set)
+    # Edges go from refiner to refined
+    refinements_graph.add_edges_from(refinements_set)
 
-    #
+    # Initialize a belief engine
+    be = BeliefEngine(refinements_graph=refinements_graph)
+
+    # Load the source counts
+    with source_counts_fname.open("rb") as fh:
+        source_counts = pickle.load(fh)
+
+    # Store hash: belief score
+    belief_scores = {}
+
+    # Iterate over each unique statement
+    with gzip.open(unique_stmts_fname.as_posix(), "rt") as fh:
+        reader = csv.reader(fh, delimiter="\t")
+
+        for _ in tqdm.tqdm(range(num_batches), desc="Calculating belief"):
+            stmts = []
+            for _ in range(batch_size):
+                try:
+                    sh, sjs = next(reader)
+                    stmt = stmt_from_json(
+                        load_statement_json(sjs, remove_evidence=True)
+                    )
+
+                    # Find all the statements that refine it
+                    refiner_hashes = set(nx.ancestors(refinements_graph, sh))
+
+                    # Add up all the source counts for the statement itself and the
+                    # statements that refine it
+                    summed_source_counts = Counter(source_counts[sh])
+                    for refiner_hash in refiner_hashes:
+                        summed_source_counts += Counter(source_counts[refiner_hash])
+
+                    # Mock evidence - todo: add annotations?
+                    ev_list = []
+                    for source, count in source_counts.get(sh, dict()).items():
+                        for _ in range(count):
+                            ev_list += Evidence(source_api=source)
+                    stmt.evidence = ev_list
+                    stmts.append((sh, stmt))
+
+                except StopIteration:
+                    break
+
+            # Actual belief calculation
+            hashes, stmt_list = zip(*stmts)
+            be.set_prior_probs(statements=stmt_list)
+            for sh, st in zip(hashes, stmt_list):
+                belief_scores[sh] = stmt.belief
+
+    # Dump the belief scores
+    with belief_scores_pkl_fname.open("wb") as fh:
+        pickle.dump(belief_scores, fh)
 
 
 if __name__ == "__main__":
