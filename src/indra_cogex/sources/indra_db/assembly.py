@@ -59,6 +59,7 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
 
     # Open two csv readers to the same file
     if not refinements_fname.exists():
+        logger.info("Calculating refinements")
         refinements = set()
         with gzip.open(unique_stmts_fname, "rt") as fh1:
             reader1 = csv.reader(fh1, delimiter="\t")
@@ -106,6 +107,8 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
             tsv_writer = csv.writer(f, delimiter="\t")
             tsv_writer.writerows(refinements)
     else:
+        logger.info(f"Loading refinements from existing file "
+                    f"{refinements_fname.as_posix()}")
         with gzip.open(refinements_fname.as_posix(), "rt") as f:
             tsv_reader = csv.reader(f, delimiter="\t")
             refinements = set(tsv_reader)
