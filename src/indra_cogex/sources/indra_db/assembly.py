@@ -34,6 +34,63 @@ class StatementJSONDecodeError(Exception):
     pass
 
 
+def get_refinement_pairs() -> Set[Tuple[int, int]]:
+    # Open two csv readers to the same file
+    if not refinements_fname.exists():
+        refinements = set()
+        with gzip.open(unique_stmts_fname, "rt") as fh1:
+            reader1 = csv.reader(fh1, delimiter="\t")
+            for outer_batch_ix in tqdm.tqdm(range(num_batches), total=num_batches,
+                                            desc="Processing refinements"):
+
+                # read in a batch from the first reader
+                stmts1 = []
+                for _ in range(batch_size):
+                    try:
+                        _, sjs = next(reader1)
+                        stmt = stmt_from_json(
+                            load_statement_json(sjs, remove_evidence=True)
+                        )
+                        stmts1.append(stmt)
+                    except StopIteration:
+                        break
+
+                refinements |= get_related(stmts1)
+
+                # Loop batches from second reader, starting at outer_batch_ix + 1
+                with gzip.open(unique_stmts_fname, "rt") as fh2:
+                    reader2 = csv.reader(fh2, delimiter="\t")
+                    batch_iterator = batch_iter(reader2, batch_size=batch_size)
+                    batch_iterator = itertools.islice(
+                        batch_iterator, outer_batch_ix + 1
+                    )
+                    for batch in batch_iterator:
+                        # Skip outer_batch_ix batches and start at inner_batch_ix
+                        stmts2 = []
+                        for _, sjs in batch:
+                            try:
+                                _, sjs = next(reader2)
+                                stmt = stmt_from_json(
+                                    load_statement_json(sjs, remove_evidence=True)
+                                )
+                                stmts2.append(stmt)
+                            except StopIteration:
+                                break
+
+                        refinements |= get_related_split(stmts1, stmts2)
+
+        # Write out the refinements as a gzipped TSV file
+        with gzip.open(refinements_fname.as_posix(), "wt") as f:
+            tsv_writer = csv.writer(f, delimiter="\t")
+            tsv_writer.writerows(refinements)
+    else:
+        with gzip.open(refinements_fname.as_posix(), "rt") as f:
+            tsv_reader = csv.reader(f, delimiter="\t")
+            refinements = set(tsv_reader)
+
+    return refinements
+
+
 def load_statement_json(
     json_str: str,
     attempt: int = 1,
@@ -226,64 +283,13 @@ if __name__ == "__main__":
         ["zcat", unique_stmts_fname.as_posix(), "|", "wc", "-l"]
     ).split()[0])
     num_batches = math.ceil(num_rows / batch_size)
-    refinements = set()
 
     # Loop statements: the outer index runs all batches while the inner index
     # runs outer index < inner index <= num_batches. This way the outer
     # index runs the "diagonal" of the combinations while the inner index runs
     # the "off-diagonal" of the combinations.
 
-    # Open two csv readers to the same file
-    if not refinements_fname.exists():
-        with gzip.open(unique_stmts_fname, "rt") as fh1:
-            reader1 = csv.reader(fh1, delimiter="\t")
-            for outer_batch_ix in tqdm.tqdm(range(num_batches), total=num_batches,
-                                            desc="Processing refinements"):
-
-                # read in a batch from the first reader
-                stmts1 = []
-                for _ in range(batch_size):
-                    try:
-                        _, sjs = next(reader1)
-                        stmt = stmt_from_json(
-                            load_statement_json(sjs, remove_evidence=True)
-                        )
-                        stmts1.append(stmt)
-                    except StopIteration:
-                        break
-
-                refinements |= get_related(stmts1)
-
-                # Loop batches from second reader, starting at outer_batch_ix + 1
-                with gzip.open(unique_stmts_fname, "rt") as fh2:
-                    reader2 = csv.reader(fh2, delimiter="\t")
-                    batch_iterator = batch_iter(reader2, batch_size=batch_size)
-                    batch_iterator = itertools.islice(
-                        batch_iterator, outer_batch_ix + 1
-                    )
-                    for batch in batch_iterator:
-                        # Skip outer_batch_ix batches and start at inner_batch_ix
-                        stmts2 = []
-                        for _, sjs in batch:
-                            try:
-                                _, sjs = next(reader2)
-                                stmt = stmt_from_json(
-                                    load_statement_json(sjs, remove_evidence=True)
-                                )
-                                stmts2.append(stmt)
-                            except StopIteration:
-                                break
-
-                        refinements |= get_related_split(stmts1, stmts2)
-
-        # Write out the refinements as a gzipped TSV file
-        with gzip.open(refinements_fname.as_posix(), "wt") as f:
-            tsv_writer = csv.writer(f, delimiter="\t")
-            tsv_writer.writerows(refinements)
-    else:
-        with gzip.open(refinements_fname.as_posix(), "rt") as f:
-            tsv_reader = csv.reader(f, delimiter="\t")
-            refinements = set(tsv_reader)
+    refinement_pairs = get_refinement_pairs()
 
     # Step 2: Calculate belief scores
-    belief_calc(refinements)
+    belief_calc(refinement_pairs)
