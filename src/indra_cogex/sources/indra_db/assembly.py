@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
     # Count lines in the file
     num_rows = int(subprocess.check_output(
-        ["zcat", unique_stmts_fname.as_posix(), "|", "wc", "-l"]
+        ["zcat", unique_stmts_fname.as_posix(), "|", "wc -l"]
     ).split()[0])
     num_batches = math.ceil(num_rows / batch_size)
 
