@@ -35,6 +35,19 @@ class StatementJSONDecodeError(Exception):
 
 
 def get_refinement_pairs() -> Set[Tuple[int, int]]:
+    """
+    Step 1, alternative:
+
+    Open two CSV readers for the unique_statements.tsv.gz and then move them
+    forward in batches to cover all combinations of Statement batches.
+
+    - First batch of Stmts, internal refinement finding
+    - First batch (first reader) x Second batch (second reader)
+    - First batch (first reader) x Third batch (second reader)
+    - ...
+    - One before last batch (first reader) x Last batch (second reader)
+    ---> Giant list of refinement relation pairs (hash1, hash2)
+    """
     # Open two csv readers to the same file
     if not refinements_fname.exists():
         refinements = set()
@@ -263,20 +276,6 @@ if __name__ == "__main__":
     bio_ontology._build_transitive_closure()
     pa = Preassembler(bio_ontology)
     batch_size = int(1e6)
-
-    """
-    Step 1, alternative:
-
-    Open two CSV readers for the unique_statements.tsv.gz and then move them
-    forward in batches to cover all combinations of Statement batches.
-
-    - First batch of Stmts, internal refinement finding
-    - First batch (first reader) x Second batch (second reader)
-    - First batch (first reader) x Third batch (second reader)
-    - ...
-    - One before last batch (first reader) x Last batch (second reader)
-    ---> Giant list of refinement relation pairs (hash1, hash2)
-    """
 
     # Count lines in the file
     num_rows = int(subprocess.check_output(
