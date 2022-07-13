@@ -21,7 +21,8 @@ from indra.statements import Statement, Evidence
 from indra.statements.io import stmt_from_json
 from indra.preassembler import Preassembler
 
-from .raw_export import unique_stmts_fname, source_counts_fname
+from indra_cogex.sources.indra_db.raw_export import unique_stmts_fname, \
+    source_counts_fname
 
 StmtList = List[Statement]
 
