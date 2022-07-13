@@ -280,6 +280,11 @@ def belief_calc(refinements_set: Set[Tuple[int, int]]):
 
 
 if __name__ == "__main__":
+    required = [source_counts_fname, unique_stmts_fname]
+    if not unique_stmts_fname.exists() or not source_counts_fname.exists():
+        raise ValueError(f"Missing one or both of the required files: "
+                         f"{', '.join(required)}")
+
     # Global variables
     bio_ontology.initialize()
     bio_ontology._build_transitive_closure()
