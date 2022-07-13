@@ -1,5 +1,6 @@
 import csv
 import gzip
+import itertools
 import math
 import json
 from typing import List, Set, Tuple
@@ -11,6 +12,7 @@ import pystow
 import sqlite3
 import subprocess
 from collections import defaultdict
+from indra.util import batch_iter
 from indra.ontology.bio import bio_ontology
 from indra.statements import Statement
 from indra.statements.io import stmt_from_json
@@ -195,12 +197,17 @@ if __name__ == "__main__":
 
                 refinements |= get_related(stmts1)
 
-                # Loop batches from second reader, starting at the
+                # Loop batches from second reader, starting at outer_batch_ix + 1
                 with gzip.open(unique_stmts_fname, "rt") as fh2:
                     reader2 = csv.reader(fh2, delimiter="\t")
-                    for inner_batch_ix in range(outer_batch_ix + 1, num_batches):
+                    batch_iterator = batch_iter(reader2, batch_size=batch_size)
+                    batch_iterator = itertools.islice(
+                        batch_iterator, outer_batch_ix + 1
+                    )
+                    for batch in batch_iterator:
+                        # Skip outer_batch_ix batches and start at inner_batch_ix
                         stmts2 = []
-                        for _ in range(batch_size):
+                        for _, sjs in batch:
                             try:
                                 _, sjs = next(reader2)
                                 stmt = stmt_from_json(
