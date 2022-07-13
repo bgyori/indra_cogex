@@ -303,7 +303,7 @@ if __name__ == "__main__":
                 rows = [(stmt.get_hash(), json.dumps(stmt.to_json())) for stmt in stmts]
                 writer.writerows(rows)
 
-        # Cast defaultdict to dict and pickle it
+        # Cast defaultdict to dict and pickle the source counts
         logger.info("Dumping source counts")
         source_counts = dict(source_counts)
         with open(source_counts_fname.as_posix(), "wb") as fh:
@@ -328,7 +328,7 @@ if __name__ == "__main__":
             writer_gr = csv.writer(fh_out_gr, delimiter="\t")
             writer_uniq = csv.writer(fh_out_uniq, delimiter="\t")
             for sh, stmt_json_str in tqdm.tqdm(
-                    reader, total=65102088, desc="Gathering grounded and unique statements"
+                    reader, total=60178601, desc="Gathering grounded and unique statements"
             ):
                 stmt = stmts_from_json([load_statement_json(stmt_json_str)])[0]
                 if len(stmt.real_agent_list()) < 2:
