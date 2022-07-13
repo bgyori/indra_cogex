@@ -51,6 +51,11 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
     - One before last batch (first reader) x Last batch (second reader)
     ---> Giant list of refinement relation pairs (hash1, hash2)
     """
+    # Loop statements: the outer index runs all batches while the inner index
+    # runs outer index < inner index <= num_batches. This way the outer
+    # index runs the "diagonal" of the combinations while the inner index runs
+    # the "off-diagonal" of the combinations.
+
     # Open two csv readers to the same file
     if not refinements_fname.exists():
         refinements = set()
@@ -287,11 +292,6 @@ if __name__ == "__main__":
         num_rows = sum(1 for _ in csv_reader)
 
     num_batches = math.ceil(num_rows / batch_size)
-
-    # Loop statements: the outer index runs all batches while the inner index
-    # runs outer index < inner index <= num_batches. This way the outer
-    # index runs the "diagonal" of the combinations while the inner index runs
-    # the "off-diagonal" of the combinations.
 
     refinement_pairs = get_refinement_pairs()
 
