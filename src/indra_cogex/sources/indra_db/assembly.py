@@ -57,7 +57,7 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
         with gzip.open(unique_stmts_fname, "rt") as fh1:
             reader1 = csv.reader(fh1, delimiter="\t")
             for outer_batch_ix in tqdm.tqdm(range(num_batches), total=num_batches,
-                                            desc="Processing refinements"):
+                                            desc="Calculating refinements"):
 
                 # read in a batch from the first reader
                 stmts1 = []
