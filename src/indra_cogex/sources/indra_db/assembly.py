@@ -1,9 +1,10 @@
 import csv
 import gzip
-import itertools
+import logging
 import math
 import json
 import pickle
+import itertools
 from typing import List, Set, Tuple
 
 import networkx as nx
@@ -11,7 +12,6 @@ import tqdm
 import codecs
 import pystow
 import sqlite3
-import subprocess
 from collections import defaultdict, Counter
 
 from indra.belief import BeliefEngine
@@ -32,6 +32,9 @@ belief_scores_pkl_fname = base_folder.join(name="belief_scores.pkl")
 
 class StatementJSONDecodeError(Exception):
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_refinement_pairs() -> Set[Tuple[int, int]]:
@@ -278,9 +281,11 @@ if __name__ == "__main__":
     batch_size = int(1e6)
 
     # Count lines in the file
-    num_rows = int(subprocess.check_output(
-        ["zcat", unique_stmts_fname.as_posix(), "|", "wc -l"]
-    ).split()[0])
+    logger.info(f"Counting lines in {unique_stmts_fname.as_posix()}")
+    with gzip.open(unique_stmts_fname.as_posix(), "rt") as fh:
+        csv_reader = csv.reader(fh, delimiter="\t")
+        num_rows = sum(1 for _ in csv_reader)
+
     num_batches = math.ceil(num_rows / batch_size)
 
     # Loop statements: the outer index runs all batches while the inner index
