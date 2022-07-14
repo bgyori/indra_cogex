@@ -234,11 +234,11 @@ def sample_unique_stmts(
             n_rows = sum(1 for _ in reader)
 
     # Generate a random sample of line indices
-    logger.info(f"Sampling {num} unique statements from {n_rows} total")
+    logger.info(f"Sampling {num} unique statements from a total of {n_rows}")
     indices = np.random.choice(n_rows, num, replace=False)
     stmts = []
     with gzip.open(unique_stmts_fname, "rt") as f:
-        reader = csv.reader(fh, delimiter="\t")
+        reader = csv.reader(f, delimiter="\t")
         for index, (sh, sjs) in tqdm.tqdm(
                 enumerate(reader), total=num, desc="Sampling statements"
         ):
