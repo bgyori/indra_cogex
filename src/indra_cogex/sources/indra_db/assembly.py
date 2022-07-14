@@ -5,7 +5,7 @@ import math
 import json
 import pickle
 import itertools
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Optional
 
 import networkx as nx
 import numpy as np
@@ -209,11 +209,29 @@ def sqlite_approach():
             refinements |= get_related_split(stmts1, stmts2)
 
 
-def sample_unique_stmts(num: int = 10000) -> List[Tuple[int, Statement]]:
-    logger.info("Counting lines...")
-    with gzip.open(unique_stmts_fname.as_posix(), "rt") as f:
-        reader = csv.reader(f, delimiter="\t")
-        n_rows = sum(1 for _ in reader)
+def sample_unique_stmts(
+        num: int = 10000, n_rows: Optional[int] = None
+) -> List[Tuple[int, Statement]]:
+    """Return a random sample of Statements from unique_statements.tsv.gz
+
+    Parameters
+    ----------
+    num :
+        Number of Statements to return
+    n_rows :
+        The number of rows in the file. If not provide, the file is read in
+        its entirety first to determine the number of rows.
+
+    Returns
+    -------
+    :
+        A list of tuples of the form (hash, Statement)
+    """
+    if n_rows is None:
+        logger.info("Counting lines...")
+        with gzip.open(unique_stmts_fname.as_posix(), "rt") as f:
+            reader = csv.reader(f, delimiter="\t")
+            n_rows = sum(1 for _ in reader)
 
     # Generate a random sample of line indices
     logger.info(f"Sampling {num} unique statements from {n_rows} total")
