@@ -83,6 +83,7 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
                     except StopIteration:
                         break
 
+                # Get refinements for the i-th batch with itself
                 refinements |= get_related(stmts1)
 
                 # Loop batches from second reader, starting at outer_batch_ix + 1
@@ -92,8 +93,12 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
                     batch_iterator = itertools.islice(
                         batch_iterator, outer_batch_ix + 1
                     )
+
+                    # Loop the batches
                     for batch in batch_iterator:
                         stmts2 = []
+
+                        # Loop the statements in the batch
                         for _, sjs in batch:
                             try:
                                 stmt = stmt_from_json(
@@ -103,6 +108,7 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
                             except StopIteration:
                                 break
 
+                        # Get refinements for the i-th batch with the j-th batch
                         refinements |= get_related_split(stmts1, stmts2)
 
         # Write out the refinements as a gzipped TSV file
