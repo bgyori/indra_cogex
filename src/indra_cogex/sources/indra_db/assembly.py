@@ -111,7 +111,9 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
                     f"{refinements_fname.as_posix()}")
         with gzip.open(refinements_fname.as_posix(), "rt") as f:
             tsv_reader = csv.reader(f, delimiter="\t")
-            refinements = set(tsv_reader)
+
+            # Each line is a refinement pair of two Statement hashes as ints
+            refinements = {(int(h1), int(h2)) for h1, h2 in tsv_reader}
 
     return refinements
 
