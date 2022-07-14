@@ -30,6 +30,7 @@ StmtList = List[Statement]
 base_folder = pystow.module("indra", "db")
 refinements_fname = base_folder.join(name="refinements.tsv.gz")
 belief_scores_pkl_fname = base_folder.join(name="belief_scores.pkl")
+refinement_cycles_fname = base_folder.join(name="refinement_cycles.pkl")
 
 
 class StatementJSONDecodeError(Exception):
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_refinement_pairs() -> Set[Tuple[int, int]]:
+    global cycles_found
     """Get refinement pairs as: (more specific, less specific)
 
     The evidence from the more specific statement is included in the less
@@ -132,7 +134,15 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
         f"Refinements are not a subset of the sample. Sample contains " \
         f"{len(sample_refinements - refinements)} refinements not in " \
         f"the full set."
-    logger.info("Refinements are internally consistent")
+    logger.info("Checking refinements for cycles")
+
+    cycles = list(nx.algorithms.simple_cycles(nx.Graph(refinements)))
+    if len(cycles) > 0:
+        logger.warning(f"Found {len(cycles)} cycles in the refinements, "
+                       f"dumping to {refinement_cycles_fname.as_posix()}")
+        with refinement_cycles_fname.open("wb") as f:
+            pickle.dump(cycles, f)
+        cycles_found = True
 
     return refinements
 
@@ -363,7 +373,14 @@ if __name__ == "__main__":
 
     num_batches = math.ceil(num_rows / batch_size)
 
+    cycles_found = False
     refinement_pairs = get_refinement_pairs()
 
     # Step 2: Calculate belief scores
-    belief_calc(refinement_pairs)
+    if cycles_found:
+        logger.info(
+            f"Refinements stored in variable 'refinement_pairs'"
+            f"and cycles saved to {refinement_cycles_fname.as_posix()}"
+        )
+    else:
+        belief_calc(refinement_pairs)
