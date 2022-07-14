@@ -167,7 +167,7 @@ def get_stmts(db, limit, offset):
     return stmts
 
 
-def get_related(stmts: StmtList):
+def get_related(stmts: StmtList) -> Set[Tuple[int, int]]:
     stmts_by_type = defaultdict(list)
     for stmt in stmts:
         stmts_by_type[stmt.__class__.__name__].append(stmt)
@@ -177,7 +177,7 @@ def get_related(stmts: StmtList):
     return refinements
 
 
-def get_related_split(stmts1: StmtList, stmts2: StmtList):
+def get_related_split(stmts1: StmtList, stmts2: StmtList) -> Set[Tuple[int, int]]:
     stmts_by_type1 = defaultdict(list)
     stmts_by_type2 = defaultdict(list)
     for stmt in stmts1:
