@@ -242,7 +242,7 @@ def sample_unique_stmts(
         reader = csv.reader(f, delimiter="\t")
         for index, (sh, sjs) in enumerate(reader):
             if index in indices:
-                stmts.append((sh, stmt_from_json(load_statement_json(sjs))))
+                stmts.append((int(sh), stmt_from_json(load_statement_json(sjs))))
                 t.update()
 
     t.close()
