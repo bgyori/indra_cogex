@@ -237,13 +237,15 @@ def sample_unique_stmts(
     logger.info(f"Sampling {num} unique statements from a total of {n_rows}")
     indices = np.random.choice(n_rows, num, replace=False)
     stmts = []
+    t = tqdm.tqdm(total=num, desc="Sampling statements")
     with gzip.open(unique_stmts_fname, "rt") as f:
         reader = csv.reader(f, delimiter="\t")
-        for index, (sh, sjs) in tqdm.tqdm(
-                enumerate(reader), total=num, desc="Sampling statements"
-        ):
+        for index, (sh, sjs) in enumerate(reader):
             if index in indices:
                 stmts.append((sh, stmt_from_json(load_statement_json(sjs))))
+                t.update()
+
+    t.close()
     return stmts
 
 
