@@ -224,7 +224,7 @@ def sqlite_approach():
 
 
 def sample_unique_stmts(
-        num: int = 10000, n_rows: Optional[int] = None
+        num: int = 100000, n_rows: Optional[int] = None
 ) -> List[Tuple[int, Statement]]:
     """Return a random sample of Statements from unique_statements.tsv.gz
 
