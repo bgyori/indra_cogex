@@ -96,7 +96,6 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
                         stmts2 = []
                         for _, sjs in batch:
                             try:
-                                _, sjs = next(reader2)
                                 stmt = stmt_from_json(
                                     load_statement_json(sjs, remove_evidence=True)
                                 )
