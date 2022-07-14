@@ -124,6 +124,15 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
             # Each line is a refinement pair of two Statement hashes as ints
             refinements = {(int(h1), int(h2)) for h1, h2 in tsv_reader}
 
+    # Perform sanity check on the refinements
+    logger.info("Checking refinements")
+    sample_stmts = sample_unique_stmts(n_rows=num_rows)
+    sample_refinements = get_related([s for _, s in sample_stmts])
+    assert sample_refinements.issubset(refinements), \
+        f"Refinements are not a subset of the sample. Sample contains " \
+        f"{len(sample_refinements - refinements)} refinements not in " \
+        f"the full set."
+
     return refinements
 
 
