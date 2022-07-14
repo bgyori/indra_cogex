@@ -8,6 +8,7 @@ import itertools
 from typing import List, Set, Tuple
 
 import networkx as nx
+import numpy as np
 import tqdm
 import codecs
 import pystow
@@ -206,6 +207,26 @@ def sqlite_approach():
             offset2 = j * batch_size
             stmts2 = get_stmts(db, batch_size, offset2)
             refinements |= get_related_split(stmts1, stmts2)
+
+
+def sample_unique_stmts(num: int = 10000) -> List[Tuple[int, Statement]]:
+    logger.info("Counting lines...")
+    with gzip.open(unique_stmts_fname.as_posix(), "rt") as f:
+        reader = csv.reader(f, delimiter="\t")
+        n_rows = sum(1 for _ in reader)
+
+    # Generate a random sample of line indices
+    logger.info(f"Sampling {num} unique statements from {n_rows} total")
+    indices = np.random.choice(n_rows, num, replace=False)
+    stmts = []
+    with gzip.open(unique_stmts_fname, "rt") as f:
+        reader = csv.reader(fh, delimiter="\t")
+        for index, (sh, sjs) in tqdm.tqdm(
+                enumerate(reader), total=num, desc="Sampling statements"
+        ):
+            if index in indices:
+                stmts.append((sh, stmt_from_json(load_statement_json(sjs))))
+    return stmts
 
 
 def belief_calc(refinements_set: Set[Tuple[int, int]]):
