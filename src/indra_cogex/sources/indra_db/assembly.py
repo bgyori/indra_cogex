@@ -132,6 +132,7 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
         f"Refinements are not a subset of the sample. Sample contains " \
         f"{len(sample_refinements - refinements)} refinements not in " \
         f"the full set."
+    logger.info("Refinements are internally consistent")
 
     return refinements
 
