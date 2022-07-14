@@ -39,7 +39,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_refinement_pairs() -> Set[Tuple[int, int]]:
-    """
+    """Get refinement pairs as: (more specific, less specific)
+
+    The evidence from the more specific statement is included in the less
+    specific statement
+
     Step 1, alternative:
 
     Open two CSV readers for the unique_statements.tsv.gz and then move them
@@ -88,7 +92,6 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
                         batch_iterator, outer_batch_ix + 1
                     )
                     for batch in batch_iterator:
-                        # Skip outer_batch_ix batches and start at inner_batch_ix
                         stmts2 = []
                         for _, sjs in batch:
                             try:
