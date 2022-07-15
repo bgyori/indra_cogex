@@ -134,15 +134,26 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
         f"Refinements are not a subset of the sample. Sample contains " \
         f"{len(sample_refinements - refinements)} refinements not in " \
         f"the full set."
-    logger.info("Checking refinements for cycles")
 
-    cycles = list(nx.algorithms.simple_cycles(nx.DiGraph(refinements)))
-    if len(cycles) > 0:
-        logger.warning(f"Found {len(cycles)} cycles in the refinements, "
+    logger.info("Checking refinements for cycles")
+    ref_graph = nx.DiGraph(refinements)
+    cycles_by_node = {}
+    for node in tqdm.tqdm(ref_graph.nodes(), desc="Checking cycles"):
+        try:
+            cycle = nx.find_cycle(ref_graph, node)
+            cycles_by_node[node] = cycle
+        except nx.NetworkXNoCycle:
+            pass
+
+    if len(cycles_by_node) > 0:
+        logger.warning(f"Found {len(cycles_by_node)} cycles in the refinements, "
                        f"dumping to {refinement_cycles_fname.as_posix()}")
         with refinement_cycles_fname.open("wb") as f:
-            pickle.dump(cycles, f)
+            pickle.dump(obj=cycles_by_node, file=f)
         cycles_found = True
+    else:
+        logger.info("No cycles found in the refinements")
+        cycles_found = False
 
     return refinements
 
