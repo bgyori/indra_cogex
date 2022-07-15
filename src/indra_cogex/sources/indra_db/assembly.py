@@ -255,7 +255,7 @@ def sample_unique_stmts(
     num :
         Number of Statements to return
     n_rows :
-        The number of rows in the file. If not provide, the file is read in
+        The number of rows in the file. If not provided, the file is read in
         its entirety first to determine the number of rows.
 
     Returns
@@ -389,7 +389,7 @@ if __name__ == "__main__":
     pa = Preassembler(bio_ontology)
     batch_size = int(1e6)
 
-    # Count lines in the file
+    # Count lines in unique statements file
     logger.info(f"Counting lines in {unique_stmts_fname.as_posix()}")
     with gzip.open(unique_stmts_fname.as_posix(), "rt") as fh:
         csv_reader = csv.reader(fh, delimiter="\t")
