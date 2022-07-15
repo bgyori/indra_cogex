@@ -28,6 +28,13 @@ from tqdm import tqdm
 from indra_cogex.representation import Node, Relation
 from indra_cogex.sources.processor import Processor
 
+from indra_cogex.sources.indra_db.assembly import belief_scores_pkl_fname
+from indra_cogex.sources.indra_db.raw_export import (
+    source_counts_fname,
+    unique_stmts_fname,
+    stmts_from_json,
+)
+
 logger = logging.getLogger(__name__)
 tqdm.pandas()
 
@@ -40,82 +47,47 @@ class DbProcessor(Processor):
     """Processor for the INDRA database."""
 
     name = "database"
-    df: pd.DataFrame
     node_types = ["BioEntity"]
 
-    def __init__(
-        self, dir_path: Union[None, str, Path] = None, add_jsons: Optional[bool] = False
-    ):
+    def __init__(self, dir_path: Union[None, str, Path] = None):
         """Initialize the INDRA database processor.
 
         Parameters
         ----------
         dir_path :
-            The path to the directory containing INDRA database SIF dump pickle
-            and batches of statements (stored in batch*.json.gz files, only if
-            add_jsons=True). If none given, will look in the default location.
-        add_jsons :
-            Whether to include statements JSONs in relation data. Default: False.
+            The path to the directory containing unique and grounded
+            statements as a *.tsv.gz file, source counts as a pickle file and
+            belief scores as a pickle file.
         """
         if dir_path is None:
-            dir_path = pystow.join("indra", "db")
+            dir_path = unique_stmts_fname.parent
         elif isinstance(dir_path, str):
             dir_path = Path(dir_path)
-        if add_jsons:
-            self.stmts_fname = dir_path / "statements_with_evidences.tsv.gz"
-            self.text_refs_fname = dir_path / "text_refs_for_reading.tsv.gz"
-            logger.info(
-                "Creating DB with Statement JSONs. Note that this "
-                "requires at least 128GB of RAM"
-            )
-        else:
-            self.stmts_fname = None
-            self.text_refs_fname = None
-            logger.info("Creating DB without Statement JSONs")
-        sif_path = dir_path.joinpath("sif.pkl")
-        with open(sif_path, "rb") as fh:
-            logger.info("Loading %s" % sif_path)
-            df = pickle.load(fh)
-        logger.info("Loaded %s rows from %s", humanize.intword(len(df)), sif_path)
-        self.df = df
-        logger.info("Fixing ID and naming issues...")
-        for side in "AB":
-            # A lot of the names in the SIF dump are all over
-            self.df[f"ag{side}_name"] = [
-                bio_ontology.get_name(prefix, identifier)
-                for prefix, identifier in self.df[
-                    [f"ag{side}_ns", f"ag{side}_id"]
-                ].values
-            ]
-            self.df[f"ag{side}_ns"], self.df[f"ag{side}_id"] = list(
-                zip(
-                    *[
-                        fix_id(db_ns, db_id)
-                        for db_ns, db_id in tqdm(
-                            zip(list(df[f"ag{side}_ns"]), list(df[f"ag{side}_id"])),
-                            total=len(df),
-                            desc="Fixing IDs",
-                        )
-                    ]
-                )
-            )
-        self.df["source_counts"] = self.df["source_counts"].apply(json.dumps)
-        self.df = self.df.dropna(subset=["belief"])
+        self.stmts_fname = dir_path / unique_stmts_fname.name
+        self.source_counts_fname = dir_path / source_counts_fname.name
+        self.belief_scores_fname = dir_path / belief_scores_pkl_fname.name
 
     def get_nodes(self):  # noqa:D102
-        df = pd.concat(
-            [
-                self.df[["agA_ns", "agA_id", "agA_name"]].rename(
-                    columns={"agA_ns": "ns", "agA_id": "id", "agA_name": "name"}
-                ),
-                self.df[["agB_ns", "agB_id", "agB_name"]].rename(
-                    columns={"agB_ns": "ns", "agB_id": "id", "agB_name": "name"}
-                ),
-            ],
-            ignore_index=True,
-        ).drop_duplicates()
-        for db_ns, db_id, name in df.values:
-            yield Node(db_ns, db_id, ["BioEntity"], dict(name=name))
+        # Read the unique statements from the file and yield unique agents
+        # The file contains statements that have already been filtered for
+        # ungrounded statements, so we can just use the agent list.
+        batch_size = 100000
+        with gzip.open(self.stmts_fname, "rt") as f:
+            reader = csv.reader(f, delimiter="\t")
+            seen_agents = set()  # Store ns:id pairs of seen agents
+
+            for batch in batch_iter(reader, batch_size=batch_size, return_func=list):
+                sj_list = [load_statement_json(sjs) for _, sjs in batch]
+                stmts = stmts_from_json(sj_list)
+                for stmt in stmts:
+                    for agent in stmt.real_agent_list():
+                        db_ns, db_id = agent.get_grounding()
+                        if (db_ns, db_id) not in seen_agents:
+                            # Todo: do we need to use bio_ontology.get_name()?
+                            yield Node(
+                                db_ns, db_id, ["BioEntity"], dict(name=agent.name)
+                            )
+                            seen_agents.add((db_ns, db_id))
 
     def get_relations(self):  # noqa:D102
         rel_type = "indra_rel"
