@@ -136,7 +136,7 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
         f"the full set."
     logger.info("Checking refinements for cycles")
 
-    cycles = list(nx.algorithms.simple_cycles(nx.Graph(refinements)))
+    cycles = list(nx.algorithms.simple_cycles(nx.DiGraph(refinements)))
     if len(cycles) > 0:
         logger.warning(f"Found {len(cycles)} cycles in the refinements, "
                        f"dumping to {refinement_cycles_fname.as_posix()}")
