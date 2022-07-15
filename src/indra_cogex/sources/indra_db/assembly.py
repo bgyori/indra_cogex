@@ -303,14 +303,24 @@ def belief_calc(refinements_set: Set[Tuple[int, int]]):
 
     Todo: bring annotations in to the evidence objects passed to the Belief Engine
     """
+    # The refinement set is a set of pairs of hashes, with the *first hash
+    # being more specific than the second hash*, i.e. the evidence for the
+    # first should be included in the evidence for the second
+    #
+    # The BeliefEngine expects the refinement graph to be a directed graph,
+    # with edges pointing from *more specific* to *less specific* statements
+    # (see docstring of indra.belief.BeliefEngine)
+    #
+    # => The edges represented by the refinement set are the *same* as the
+    # edges expected by the BeliefEngine.
 
-    # Make a networkx graph of the refinements
+    # Make a networkx DiGraph of the refinements
+    logger.info("Making refinement graph")
     refinements_graph = nx.DiGraph()
-
-    # Edges go from refiner to refined
     refinements_graph.add_edges_from(refinements_set)
 
     # Initialize a belief engine
+    logger.info("Initializing belief engine")
     be = BeliefEngine(refinements_graph=refinements_graph)
 
     # Load the source counts
@@ -332,36 +342,39 @@ def belief_calc(refinements_set: Set[Tuple[int, int]]):
                     stmt = stmt_from_json(
                         load_statement_json(sjs, remove_evidence=True)
                     )
+                    this_hash = int(sh)
 
-                    # Find all the statements that refine it
-                    refiner_hashes = set(nx.ancestors(refinements_graph, sh))
+                    # Find all the statements that refine the current
+                    # statement, i.e. all the statements that are more
+                    # specific than the current statement => look for descendants
+                    refiner_hashes = nx.ancestors(refinements_graph, this_hash)
 
                     # Add up all the source counts for the statement itself and the
                     # statements that refine it
-                    summed_source_counts = Counter(source_counts[sh])
+                    summed_source_counts = Counter(source_counts[this_hash])
                     for refiner_hash in refiner_hashes:
                         summed_source_counts += Counter(source_counts[refiner_hash])
 
                     # Mock evidence - todo: add annotations?
                     ev_list = []
-                    for source, count in source_counts.get(sh, dict()).items():
+                    for source, count in summed_source_counts.items():
                         for _ in range(count):
                             ev_list += Evidence(source_api=source)
                     stmt.evidence = ev_list
-                    stmts.append((sh, stmt))
+                    stmts.append((this_hash, stmt))
 
                 except StopIteration:
                     break
 
-            # Actual belief calculation
+            # Belief calculation for this batch
             hashes, stmt_list = zip(*stmts)
             be.set_prior_probs(statements=stmt_list)
             for sh, st in zip(hashes, stmt_list):
                 belief_scores[sh] = stmt.belief
 
     # Dump the belief scores
-    with belief_scores_pkl_fname.open("wb") as fh:
-        pickle.dump(belief_scores, fh)
+    with belief_scores_pkl_fname.open("wb") as fo:
+        pickle.dump(belief_scores, fo)
 
 
 if __name__ == "__main__":
