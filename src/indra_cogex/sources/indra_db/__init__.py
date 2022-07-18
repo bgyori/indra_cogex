@@ -13,7 +13,7 @@ import textwrap
 from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
-from typing import Iterable, Optional, Tuple, Union, List
+from typing import Iterable, Optional, Tuple, Union, List, Dict
 
 import click
 import humanize
@@ -412,6 +412,16 @@ def load_text_refs_for_reading_dict(fname: str):
                 d[id_name] = id_val
         text_refs[rid] = d
     return text_refs
+
+
+def load_raw_stmt_id_for_reading_id_dict(fname: str) -> Dict[str, str]:
+    reading_id_for_raw_stmt_id = {}
+    with gzip.open(fname, "rt", encoding="utf-8") as fh:
+        reader = csv.reader(fh, delimiter="\t")
+        for raw_stmt_id, db_info_id, reading_id, stmt_json_raw in reader:
+
+            reading_id_for_raw_stmt_id[reading_id] = raw_stmt_id
+    return reading_id_for_raw_stmt_id
 
 
 def ensure_statements_with_evidences(fname):
