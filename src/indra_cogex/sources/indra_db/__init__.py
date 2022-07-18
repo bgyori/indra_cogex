@@ -34,7 +34,7 @@ from indra_cogex.sources.indra_db.assembly import belief_scores_pkl_fname
 from indra_cogex.sources.indra_db.raw_export import (
     source_counts_fname,
     unique_stmts_fname,
-    stmts_from_json,
+    stmts_from_json, raw_stmts_fname, text_refs_fname,
 )
 
 logger = logging.getLogger(__name__)
@@ -414,14 +414,15 @@ def load_text_refs_for_reading_dict(fname: str):
     return text_refs
 
 
-def load_raw_stmt_id_for_reading_id_dict(fname: str) -> Dict[str, str]:
-    reading_id_for_raw_stmt_id = {}
-    with gzip.open(fname, "rt", encoding="utf-8") as fh:
+def load_raw_stmt_id_for_pmid_dict() -> Dict[str, str]:
+    raw_stmt_id_for_pmid = {}
+    text_refs = load_text_refs_for_reading_dict(text_refs_fname.as_posix())
+    with gzip.open(raw_stmts_fname, "rt", encoding="utf-8") as fh:
         reader = csv.reader(fh, delimiter="\t")
         for raw_stmt_id, db_info_id, reading_id, stmt_json_raw in reader:
-
-            reading_id_for_raw_stmt_id[reading_id] = raw_stmt_id
-    return reading_id_for_raw_stmt_id
+            if reading_id in text_refs:
+                raw_stmt_id_for_pmid[text_refs[reading_id]["PMID"]] = raw_stmt_id
+    return raw_stmt_id_for_pmid
 
 
 def ensure_statements_with_evidences(fname):
