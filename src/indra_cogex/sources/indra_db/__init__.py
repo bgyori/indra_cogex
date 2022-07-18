@@ -11,8 +11,9 @@ import os
 import pickle
 import textwrap
 from collections import defaultdict
+from itertools import combinations
 from pathlib import Path
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Tuple, Union, List
 
 import click
 import humanize
@@ -20,6 +21,7 @@ import pandas as pd
 import pystow
 from indra.databases.identifiers import ensure_prefix_if_needed
 from indra.ontology.bio import bio_ontology
+from indra.statements import Agent
 from indra.util import batch_iter
 from indra.util.statement_presentation import db_sources, reader_sources
 from more_click import verbose_option
@@ -89,133 +91,112 @@ class DbProcessor(Processor):
                             )
                             seen_agents.add((db_ns, db_id))
 
-    def get_relations(self):  # noqa:D102
+    def get_relations(self, max_complex_members: int = 3):  # noqa:D102
+        # todo: Should this method call the source scripts for statements,
+        #  source counts and belief calculations? They will take 12+ hours
+        #  altogether.
         rel_type = "indra_rel"
-        columns = [
-            "agA_ns",
-            "agA_id",
-            "agB_ns",
-            "agB_id",
-            "stmt_type",
-            "source_counts",
-            "evidence_count",
-            "belief",
-            "stmt_hash",
-        ]
         total_count = 0
-        # If we want to add statement JSONs, process the statement batches and
-        # map to records in SIF dataframe
-        if self.stmts_fname:
-            ensure_statements_with_evidences(self.stmts_fname.as_posix())
-            ensure_text_refs_for_reading(self.text_refs_fname.as_posix())
-            # Remove duplicate hashes (e.g. reverse edges for Complexes)
-            df = self.df.drop_duplicates(subset="stmt_hash", keep="first")
-            # Convert to dict with hashes as keys
-            df = df.set_index("stmt_hash")
-            df_dict = df.to_dict(orient="index")
-            hashes_yielded = set()
-            logger.info("Getting text refs from text refs file")
-            text_refs = load_text_refs_for_reading_dict(self.text_refs_fname)
-            with gzip.open(self.stmts_fname, "rt", encoding="utf-8") as fh:
-                # For each statement find corresponding row in df
-                reader = csv.reader(fh, delimiter="\t")
-                for (
-                    raw_stmt_id,
-                    reading_id,
-                    stmt_hash,
-                    raw_json_str,
-                    pa_json_str,
-                ) in reader:
-                    stmt_hash = int(stmt_hash)
-                    # If we already yielded this statement, we can skip it
-                    if stmt_hash in hashes_yielded:
-                        continue
-                    stmt_json = load_statement_json(pa_json_str)
-                    try:
-                        values = df_dict[stmt_hash]
-                        source_counts = json.loads(values["source_counts"])
-                        # For statements with only evidence from medscan,
-                        # we don't add an evidence and yield the statement
-                        medscan_only = set(source_counts) == {"medscan"}
-                        if medscan_only:
-                            stmt_json["evidence"] = []
-                        # Otherwise, we know that eventually we will bump into
-                        # an evidence we can use and so we skip any medscan
-                        # ones without yielding the statement
-                        else:
-                            raw_json = load_statement_json(raw_json_str)
-                            raw_json_ev = raw_json["evidence"][0]
-                            if raw_json_ev["source_api"] == "medscan":
-                                continue
-                            elif reading_id != "\\N":
-                                tr = text_refs[reading_id]
-                                raw_json_ev["text_refs"] = tr
-                                if "PMID" in raw_json_ev["text_refs"]:
-                                    raw_json_ev["pmid"] = raw_json_ev["text_refs"][
-                                        "PMID"
-                                    ]
-                            stmt_json["evidence"] = raw_json["evidence"]
-                        data = {
-                            "stmt_hash:long": stmt_hash,
-                            "source_counts:string": values["source_counts"],
-                            "evidence_count:int": values["evidence_count"],
-                            "stmt_type:string": values["stmt_type"],
-                            "belief:float": values["belief"],
-                            "stmt_json:string": json.dumps(stmt_json),
-                            "has_database_evidence:bool": any(
-                                source in db_sources for source in source_counts
-                            ),
-                            "has_reader_evidence:bool": any(
-                                source in reader_sources for source in source_counts
-                            ),
-                            "medscan_only:bool": medscan_only,
-                            "sparser_only:bool": set(source_counts) == {"sparser"},
-                        }
-                        total_count += 1
-                        hashes_yielded.add(stmt_hash)
+
+        # Load the source counts and belief scores into dictionaries
+        logger.info("Loading source counts per hash")
+        with self.source_counts_fname.open("rb") as f:
+            source_counts = pickle.load(f)
+        logger.info("Loading belief scores per hash")
+        with self.belief_scores_fname.open("rb") as f:
+            belief_scores = pickle.load(f)
+
+        hashes_yielded = set()
+        with gzip.open(self.stmts_fname, "rt") as fh:
+            reader = csv.reader(fh, delimiter="\t")
+            for sh_str, stmt_json_str in tqdm(reader, desc="Reading statements"):
+                stmt_hash = int(sh_str)
+                try:
+                    source_count = source_counts[stmt_hash]
+                    belief = belief_scores[stmt_hash]
+                except KeyError:
+                    # NOTE: this should not happen if files are generated
+                    # properly and are up to date.
+                    logger.warning(
+                        f"Could not find source count or belief score for "
+                        f"statement hash {stmt_hash}. Are the source files updated?"
+                    )
+                    continue
+                # If we already yielded this statement, we can skip it
+                # NOTE: statements should be unique.
+                if stmt_hash in hashes_yielded:
+                    logger.warning(
+                        f"Found duplicate hash {stmt_hash} among unique statements"
+                    )
+                    continue
+                stmt_json = load_statement_json(stmt_json_str)
+                ev_list = stmt_json["evidence"]
+                stripped_json = [ev_list[0]]
+                data = {
+                    "stmt_hash:long": stmt_hash,
+                    "source_counts:string": json.dumps(source_count),
+                    "evidence_count:int": len(ev_list),
+                    "stmt_type:string": stmt_json["stmt_type"],
+                    "belief:float": belief,
+                    "stmt_json:string": json.dumps(stripped_json),
+                    "has_database_evidence:bool": any(
+                        source in db_sources for source in source_counts
+                    ),
+                    "has_reader_evidence:bool": any(
+                        source in reader_sources for source in source_counts
+                    ),
+                    "medscan_only:bool": set(source_counts) == {"medscan"},
+                    "sparser_only:bool": set(source_counts) == {"sparser"},
+                }
+
+                # Get the agents from the statement
+                agents: List[Agent] = [
+                    ag for ag in stmt_json["agent_list"] if ag is not None
+                ]
+                if len(agents) < 2:
+                    logger.warning(
+                        f"Statement {stmt_hash} has less than two agents. Skipping."
+                    )
+                    continue
+                elif len(agents) == 2:
+                    ag_a, ag_b = agents
+                    ns_a, id_a = ag_a.get_grounding()
+                    ns_b, id_b = ag_b.get_grounding()
+                    yield Relation(
+                        ns_a,
+                        id_a,
+                        ns_b,
+                        id_b,
+                        rel_type,
+                        data,
+                    )
+                    total_count += 1
+                elif 2 < len(agents) <= max_complex_members:
+                    # This is a complex, so we need to yield a relation for
+                    # each pair of agents of the complex
+                    for ag_a, ag_b in combinations(agents, 2):
+                        ns_a, id_a = ag_a.get_grounding()
+                        ns_b, id_b = ag_b.get_grounding()
                         yield Relation(
-                            values["agA_ns"],
-                            values["agA_id"],
-                            values["agB_ns"],
-                            values["agB_id"],
+                            ns_a,
+                            id_a,
+                            ns_b,
+                            id_b,
                             rel_type,
                             data,
                         )
-                    # This statement is not in df
-                    except KeyError:
-                        continue
-        # Otherwise only process the SIF dataframe
-        else:
-            for (
-                source_ns,
-                source_id,
-                target_ns,
-                target_id,
-                stmt_type,
-                source_counts,
-                evidence_count,
-                belief,
-                stmt_hash,
-            ) in (
-                self.df[columns].drop_duplicates().values
-            ):
-                data = {
-                    "stmt_hash:long": stmt_hash,
-                    "source_counts:string": source_counts,
-                    "evidence_count:int": evidence_count,
-                    "stmt_type:string": stmt_type,
-                    "belief:float": belief,
-                }
-                total_count += 1
-                yield Relation(
-                    source_ns,
-                    source_id,
-                    target_ns,
-                    target_id,
-                    rel_type,
-                    data,
-                )
-        logger.info(f"Got {total_count} total relations")
+                        total_count += 1
+                else:
+                    logger.warning(
+                        f"Statement {stmt_hash} has more than {max_complex_members} agents. Skipping."
+                    )
+                    continue
+
+                hashes_yielded.add(stmt_hash)
+
+        logger.info(
+            f"Got {total_count} total relations from {len(hashes_yielded)} unique statements"
+        )
 
     @classmethod
     def get_cli(cls) -> click.Command:
