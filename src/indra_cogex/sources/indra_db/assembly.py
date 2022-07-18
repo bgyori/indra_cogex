@@ -68,6 +68,7 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
     if not refinements_fname.exists():
         logger.info("Calculating refinements")
         refinements = set()
+        # This takes ~9-10 hours to run
         with gzip.open(unique_stmts_fname, "rt") as fh1:
             reader1 = csv.reader(fh1, delimiter="\t")
             for outer_batch_ix in tqdm.tqdm(range(num_batches), total=num_batches,
@@ -381,7 +382,7 @@ if __name__ == "__main__":
     required = [source_counts_fname, unique_stmts_fname]
     if not unique_stmts_fname.exists() or not source_counts_fname.exists():
         raise ValueError(f"Missing one or both of the required files: "
-                         f"{', '.join(required)}")
+                         f"{', '.join(r.as_possix() for r in required)}")
 
     # Global variables
     bio_ontology.initialize()

@@ -10,7 +10,7 @@ import pandas
 import pickle
 import pystow
 from indra.util import batch_iter
-from indra.statements import stmts_from_json, stmts_to_json
+from indra.statements import stmts_from_json
 from indra.tools import assemble_corpus as ac
 
 base_folder = pystow.module("indra", "db")
