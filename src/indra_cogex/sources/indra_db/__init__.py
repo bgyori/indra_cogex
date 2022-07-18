@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 tqdm.pandas()
 
 
-# If you don't have the data, get it from:
-# 's3://bigmech/indra-db/dumps/2021-01-26/sif.pkl'
+# If you don't have the data, run the script in raw_export.py and then in
+# assembly.py (both in this directory) to get it.
 
 
 class DbProcessor(Processor):
