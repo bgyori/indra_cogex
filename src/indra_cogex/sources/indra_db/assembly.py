@@ -22,8 +22,10 @@ from indra.statements import Statement, Evidence
 from indra.statements.io import stmt_from_json
 from indra.preassembler import Preassembler
 
-from indra_cogex.sources.indra_db.raw_export import unique_stmts_fname, \
-    source_counts_fname
+from indra_cogex.sources.indra_db.raw_export import (
+    unique_stmts_fname,
+    source_counts_fname,
+)
 
 StmtList = List[Statement]
 
@@ -71,8 +73,9 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
         # This takes ~9-10 hours to run
         with gzip.open(unique_stmts_fname, "rt") as fh1:
             reader1 = csv.reader(fh1, delimiter="\t")
-            for outer_batch_ix in tqdm.tqdm(range(num_batches), total=num_batches,
-                                            desc="Calculating refinements"):
+            for outer_batch_ix in tqdm.tqdm(
+                range(num_batches), total=num_batches, desc="Calculating refinements"
+            ):
 
                 # read in a batch from the first reader
                 stmts1 = []
@@ -119,8 +122,9 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
             tsv_writer = csv.writer(f, delimiter="\t")
             tsv_writer.writerows(refinements)
     else:
-        logger.info(f"Loading refinements from existing file "
-                    f"{refinements_fname.as_posix()}")
+        logger.info(
+            f"Loading refinements from existing file {refinements_fname.as_posix()}"
+        )
         with gzip.open(refinements_fname.as_posix(), "rt") as f:
             tsv_reader = csv.reader(f, delimiter="\t")
 
@@ -131,10 +135,11 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
     logger.info("Checking refinements")
     sample_stmts = sample_unique_stmts(n_rows=num_rows)
     sample_refinements = get_related([s for _, s in sample_stmts])
-    assert sample_refinements.issubset(refinements), \
-        f"Refinements are not a subset of the sample. Sample contains " \
-        f"{len(sample_refinements - refinements)} refinements not in " \
+    assert sample_refinements.issubset(refinements), (
+        f"Refinements are not a subset of the sample. Sample contains "
+        f"{len(sample_refinements - refinements)} refinements not in "
         f"the full set."
+    )
 
     logger.info("Checking refinements for cycles")
     ref_graph = nx.DiGraph(refinements)
@@ -147,8 +152,10 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
             pass
 
     if len(cycles_by_node) > 0:
-        logger.warning(f"Found {len(cycles_by_node)} cycles in the refinements, "
-                       f"dumping to {refinement_cycles_fname.as_posix()}")
+        logger.warning(
+            f"Found {len(cycles_by_node)} cycles in the refinements, "
+            f"dumping to {refinement_cycles_fname.as_posix()}"
+        )
         with refinement_cycles_fname.open("wb") as f:
             pickle.dump(obj=cycles_by_node, file=f)
         cycles_found = True
@@ -247,7 +254,7 @@ def sqlite_approach():
 
 
 def sample_unique_stmts(
-        num: int = 100000, n_rows: Optional[int] = None
+    num: int = 100000, n_rows: Optional[int] = None
 ) -> List[Tuple[int, Statement]]:
     """Return a random sample of Statements from unique_statements.tsv.gz
 
@@ -347,8 +354,8 @@ def belief_calc(refinements_set: Set[Tuple[int, int]]):
 
                     # Find all the statements that refine the current
                     # statement, i.e. all the statements that are more
-                    # specific than the current statement => look for descendants
-                    refiner_hashes = nx.ancestors(refinements_graph, this_hash)
+                    # specific than the current statement => look for ancestors
+                    refiner_hashes = nx.ancestors(G=refinements_graph, source=this_hash)
 
                     # Add up all the source counts for the statement itself and the
                     # statements that refine it
@@ -381,8 +388,10 @@ def belief_calc(refinements_set: Set[Tuple[int, int]]):
 if __name__ == "__main__":
     required = [source_counts_fname, unique_stmts_fname]
     if not unique_stmts_fname.exists() or not source_counts_fname.exists():
-        raise ValueError(f"Missing one or both of the required files: "
-                         f"{', '.join(r.as_possix() for r in required)}")
+        raise ValueError(
+            f"Missing one or both of the required files: "
+            f"{', '.join(r.as_possix() for r in required)}"
+        )
 
     # Global variables
     bio_ontology.initialize()
