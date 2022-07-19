@@ -366,7 +366,7 @@ def belief_calc(refinements_graph: nx.DiGraph):
                     for source, count in summed_source_counts.items():
                         # Add `count` evidence objects for each source
                         for _ in range(count):
-                            ev_list += Evidence(source_api=source)
+                            ev_list.append(Evidence(source_api=source))
                     stmt.evidence = ev_list
                     stmts.append((this_hash, stmt))
 
