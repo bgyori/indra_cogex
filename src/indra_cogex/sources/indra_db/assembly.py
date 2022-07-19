@@ -42,7 +42,7 @@ class StatementJSONDecodeError(Exception):
 logger = logging.getLogger(__name__)
 
 
-def get_refinement_pairs() -> Set[Tuple[int, int]]:
+def get_refinement_graph() -> nx.DiGraph:
     global cycles_found
     """Get refinement pairs as: (more specific, less specific)
 
@@ -60,6 +60,8 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
     - ...
     - One before last batch (first reader) x Last batch (second reader)
     ---> Giant list of refinement relation pairs (hash1, hash2)
+    
+    Put the pairs in a networkx DiGraph
     """
     # Loop statements: the outer index runs all batches while the inner index
     # runs outer index < inner index <= num_batches. This way the outer
@@ -143,27 +145,24 @@ def get_refinement_pairs() -> Set[Tuple[int, int]]:
 
     logger.info("Checking refinements for cycles")
     ref_graph = nx.DiGraph(refinements)
-    cycles_by_node = {}
-    for node in tqdm.tqdm(ref_graph.nodes(), desc="Checking cycles"):
-        try:
-            cycle = nx.find_cycle(ref_graph, node)
-            cycles_by_node[node] = cycle
-        except nx.NetworkXNoCycle:
-            pass
-
-    if len(cycles_by_node) > 0:
-        logger.warning(
-            f"Found {len(cycles_by_node)} cycles in the refinements, "
-            f"dumping to {refinement_cycles_fname.as_posix()}"
-        )
-        with refinement_cycles_fname.open("wb") as f:
-            pickle.dump(obj=cycles_by_node, file=f)
+    try:
+        cycles = nx.find_cycle(ref_graph)
         cycles_found = True
-    else:
+    except nx.NetworkXNoCycle:
         logger.info("No cycles found in the refinements")
+        cycles = None
         cycles_found = False
 
-    return refinements
+    # If cycles are found, save them to a file for later inspection
+    if cycles_found and cycles is not None:
+        logger.warning(
+            f"Found cycles in the refinement graph, dumping to {refinement_cycles_fname.as_posix()}"
+        )
+        with refinement_cycles_fname.open("wb") as f:
+            pickle.dump(obj=cycles, file=f)
+        cycles_found = True
+
+    return ref_graph
 
 
 def load_statement_json(
@@ -408,13 +407,14 @@ if __name__ == "__main__":
     num_batches = math.ceil(num_rows / batch_size)
 
     cycles_found = False
-    refinement_pairs = get_refinement_pairs()
+    refinement_graph = get_refinement_graph()
 
     # Step 2: Calculate belief scores
     if cycles_found:
         logger.info(
-            f"Refinements stored in variable 'refinement_pairs'"
+            f"Refinement graph stored in variable 'refinement_graph', "
+            f"edges saved to {refinements_fname.as_posix()}"
             f"and cycles saved to {refinement_cycles_fname.as_posix()}"
         )
     else:
-        belief_calc(refinement_pairs)
+        belief_calc(refinement_graph)
