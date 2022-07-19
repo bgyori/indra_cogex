@@ -292,7 +292,7 @@ def sample_unique_stmts(
     return stmts
 
 
-def belief_calc(refinements_set: Set[Tuple[int, int]]):
+def belief_calc(refinements_graph: nx.DiGraph):
     # Belief Calculations
     """
     Belief calculation idea:
@@ -320,11 +320,6 @@ def belief_calc(refinements_set: Set[Tuple[int, int]]):
     #
     # => The edges represented by the refinement set are the *same* as the
     # edges expected by the BeliefEngine.
-
-    # Make a networkx DiGraph of the refinements
-    logger.info("Making refinement graph")
-    refinements_graph = nx.DiGraph()
-    refinements_graph.add_edges_from(refinements_set)
 
     # Initialize a belief engine
     logger.info("Initializing belief engine")
@@ -354,17 +349,22 @@ def belief_calc(refinements_set: Set[Tuple[int, int]]):
                     # Find all the statements that refine the current
                     # statement, i.e. all the statements that are more
                     # specific than the current statement => look for ancestors
-                    refiner_hashes = nx.ancestors(G=refinements_graph, source=this_hash)
-
-                    # Add up all the source counts for the statement itself and the
-                    # statements that refine it
+                    # then add up all the source counts for the statement
+                    # itself and the statements that refine it
                     summed_source_counts = Counter(source_counts[this_hash])
-                    for refiner_hash in refiner_hashes:
-                        summed_source_counts += Counter(source_counts[refiner_hash])
+
+                    # If there are refinements, add them to the source counts
+                    if this_hash in refinements_graph.nodes():
+                        refiner_hashes = nx.ancestors(
+                            G=refinements_graph, source=this_hash
+                        )
+                        for refiner_hash in refiner_hashes:
+                            summed_source_counts += Counter(source_counts[refiner_hash])
 
                     # Mock evidence - todo: add annotations?
                     ev_list = []
                     for source, count in summed_source_counts.items():
+                        # Add `count` evidence objects for each source
                         for _ in range(count):
                             ev_list += Evidence(source_api=source)
                     stmt.evidence = ev_list
