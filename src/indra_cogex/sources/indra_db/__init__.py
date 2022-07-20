@@ -239,7 +239,7 @@ class EvidenceProcessor(Processor):
 
     def __init__(self):
         """Initialize the Evidence processor"""
-        self.stmt_fname = self.grounded_stmts_fname = grounded_stmts_fname
+        self.stmt_fname = grounded_stmts_fname
         self._stmt_id_pmid_links = {}
         # Check if files exist without loading them
         if not self.stmt_fname.exists():
