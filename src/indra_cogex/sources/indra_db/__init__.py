@@ -11,15 +11,13 @@ import os
 import pickle
 import textwrap
 from collections import defaultdict
+from itertools import combinations
 from pathlib import Path
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Tuple, Union, List, Dict
 
 import click
-import humanize
-import pandas as pd
-import pystow
 from indra.databases.identifiers import ensure_prefix_if_needed
-from indra.ontology.bio import bio_ontology
+from indra.statements import Agent
 from indra.util import batch_iter
 from indra.util.statement_presentation import db_sources, reader_sources
 from more_click import verbose_option
@@ -28,222 +26,179 @@ from tqdm import tqdm
 from indra_cogex.representation import Node, Relation
 from indra_cogex.sources.processor import Processor
 
+from indra_cogex.sources.indra_db.assembly import belief_scores_pkl_fname
+from indra_cogex.sources.indra_db.raw_export import (
+    source_counts_fname,
+    unique_stmts_fname,
+    grounded_stmts_fname,
+    stmts_from_json,
+    raw_stmts_fname,
+    text_refs_fname,
+)
+
 logger = logging.getLogger(__name__)
 tqdm.pandas()
 
 
-# If you don't have the data, get it from:
-# 's3://bigmech/indra-db/dumps/2021-01-26/sif.pkl'
+# If you don't have the data, run the script in raw_export.py and then in
+# assembly.py (both in this directory) to get it.
 
 
 class DbProcessor(Processor):
     """Processor for the INDRA database."""
 
     name = "database"
-    df: pd.DataFrame
     node_types = ["BioEntity"]
 
-    def __init__(
-        self, dir_path: Union[None, str, Path] = None, add_jsons: Optional[bool] = False
-    ):
+    def __init__(self, dir_path: Union[None, str, Path] = None):
         """Initialize the INDRA database processor.
 
         Parameters
         ----------
         dir_path :
-            The path to the directory containing INDRA database SIF dump pickle
-            and batches of statements (stored in batch*.json.gz files, only if
-            add_jsons=True). If none given, will look in the default location.
-        add_jsons :
-            Whether to include statements JSONs in relation data. Default: False.
+            The path to the directory containing unique and grounded
+            statements as a *.tsv.gz file, source counts as a pickle file and
+            belief scores as a pickle file.
         """
         if dir_path is None:
-            dir_path = pystow.join("indra", "db")
+            dir_path = unique_stmts_fname.parent
         elif isinstance(dir_path, str):
             dir_path = Path(dir_path)
-        if add_jsons:
-            self.stmts_fname = dir_path / "statements_with_evidences.tsv.gz"
-            self.text_refs_fname = dir_path / "text_refs_for_reading.tsv.gz"
-            logger.info(
-                "Creating DB with Statement JSONs. Note that this "
-                "requires at least 128GB of RAM"
-            )
-        else:
-            self.stmts_fname = None
-            self.text_refs_fname = None
-            logger.info("Creating DB without Statement JSONs")
-        sif_path = dir_path.joinpath("sif.pkl")
-        with open(sif_path, "rb") as fh:
-            logger.info("Loading %s" % sif_path)
-            df = pickle.load(fh)
-        logger.info("Loaded %s rows from %s", humanize.intword(len(df)), sif_path)
-        self.df = df
-        logger.info("Fixing ID and naming issues...")
-        for side in "AB":
-            # A lot of the names in the SIF dump are all over
-            self.df[f"ag{side}_name"] = [
-                bio_ontology.get_name(prefix, identifier)
-                for prefix, identifier in self.df[
-                    [f"ag{side}_ns", f"ag{side}_id"]
-                ].values
-            ]
-            self.df[f"ag{side}_ns"], self.df[f"ag{side}_id"] = list(
-                zip(
-                    *[
-                        fix_id(db_ns, db_id)
-                        for db_ns, db_id in tqdm(
-                            zip(list(df[f"ag{side}_ns"]), list(df[f"ag{side}_id"])),
-                            total=len(df),
-                            desc="Fixing IDs",
-                        )
-                    ]
-                )
-            )
-        self.df["source_counts"] = self.df["source_counts"].apply(json.dumps)
-        self.df = self.df.dropna(subset=["belief"])
+        self.stmts_fname = dir_path / unique_stmts_fname.name
+        self.source_counts_fname = dir_path / source_counts_fname.name
+        self.belief_scores_fname = dir_path / belief_scores_pkl_fname.name
 
     def get_nodes(self):  # noqa:D102
-        df = pd.concat(
-            [
-                self.df[["agA_ns", "agA_id", "agA_name"]].rename(
-                    columns={"agA_ns": "ns", "agA_id": "id", "agA_name": "name"}
-                ),
-                self.df[["agB_ns", "agB_id", "agB_name"]].rename(
-                    columns={"agB_ns": "ns", "agB_id": "id", "agB_name": "name"}
-                ),
-            ],
-            ignore_index=True,
-        ).drop_duplicates()
-        for db_ns, db_id, name in df.values:
-            yield Node(db_ns, db_id, ["BioEntity"], dict(name=name))
+        # Read the unique statements from the file and yield unique agents
+        # The file contains statements that have already been filtered for
+        # ungrounded statements, so we can just use the agent list.
+        batch_size = 100000
+        with gzip.open(self.stmts_fname.as_posix(), "rt") as f:
+            reader = csv.reader(f, delimiter="\t")
+            seen_agents = set()  # Store ns:id pairs of seen agents
 
-    def get_relations(self):  # noqa:D102
+            for batch in tqdm(
+                batch_iter(reader, batch_size=batch_size, return_func=list),
+                desc="Getting BioEntity nodes",
+            ):
+                sj_list = [load_statement_json(sjs) for _, sjs in batch]
+                stmts = stmts_from_json(sj_list)
+                for stmt in stmts:
+                    for agent in stmt.real_agent_list():
+                        db_ns, db_id = agent.get_grounding()
+                        if (db_ns, db_id) not in seen_agents:
+                            # Todo: do we need to use bio_ontology.get_name()?
+                            yield Node(
+                                db_ns, db_id, ["BioEntity"], dict(name=agent.name)
+                            )
+                            seen_agents.add((db_ns, db_id))
+
+    def get_relations(self, max_complex_members: int = 3):  # noqa:D102
+        # todo: Should this method call the source scripts for statements,
+        #  source counts and belief calculations? They will take 12+ hours
+        #  altogether.
         rel_type = "indra_rel"
-        columns = [
-            "agA_ns",
-            "agA_id",
-            "agB_ns",
-            "agB_id",
-            "stmt_type",
-            "source_counts",
-            "evidence_count",
-            "belief",
-            "stmt_hash",
-        ]
         total_count = 0
-        # If we want to add statement JSONs, process the statement batches and
-        # map to records in SIF dataframe
-        if self.stmts_fname:
-            ensure_statements_with_evidences(self.stmts_fname.as_posix())
-            ensure_text_refs_for_reading(self.text_refs_fname.as_posix())
-            # Remove duplicate hashes (e.g. reverse edges for Complexes)
-            df = self.df.drop_duplicates(subset="stmt_hash", keep="first")
-            # Convert to dict with hashes as keys
-            df = df.set_index("stmt_hash")
-            df_dict = df.to_dict(orient="index")
-            hashes_yielded = set()
-            logger.info("Getting text refs from text refs file")
-            text_refs = load_text_refs_for_reading_dict(self.text_refs_fname)
-            with gzip.open(self.stmts_fname, "rt", encoding="utf-8") as fh:
-                # For each statement find corresponding row in df
-                reader = csv.reader(fh, delimiter="\t")
-                for (
-                    raw_stmt_id,
-                    reading_id,
-                    stmt_hash,
-                    raw_json_str,
-                    pa_json_str,
-                ) in reader:
-                    stmt_hash = int(stmt_hash)
-                    # If we already yielded this statement, we can skip it
-                    if stmt_hash in hashes_yielded:
-                        continue
-                    stmt_json = load_statement_json(pa_json_str)
-                    try:
-                        values = df_dict[stmt_hash]
-                        source_counts = json.loads(values["source_counts"])
-                        # For statements with only evidence from medscan,
-                        # we don't add an evidence and yield the statement
-                        medscan_only = set(source_counts) == {"medscan"}
-                        if medscan_only:
-                            stmt_json["evidence"] = []
-                        # Otherwise, we know that eventually we will bump into
-                        # an evidence we can use and so we skip any medscan
-                        # ones without yielding the statement
-                        else:
-                            raw_json = load_statement_json(raw_json_str)
-                            raw_json_ev = raw_json["evidence"][0]
-                            if raw_json_ev["source_api"] == "medscan":
-                                continue
-                            elif reading_id != "\\N":
-                                tr = text_refs[reading_id]
-                                raw_json_ev["text_refs"] = tr
-                                if "PMID" in raw_json_ev["text_refs"]:
-                                    raw_json_ev["pmid"] = raw_json_ev["text_refs"][
-                                        "PMID"
-                                    ]
-                            stmt_json["evidence"] = raw_json["evidence"]
-                        data = {
-                            "stmt_hash:long": stmt_hash,
-                            "source_counts:string": values["source_counts"],
-                            "evidence_count:int": values["evidence_count"],
-                            "stmt_type:string": values["stmt_type"],
-                            "belief:float": values["belief"],
-                            "stmt_json:string": json.dumps(stmt_json),
-                            "has_database_evidence:bool": any(
-                                source in db_sources for source in source_counts
-                            ),
-                            "has_reader_evidence:bool": any(
-                                source in reader_sources for source in source_counts
-                            ),
-                            "medscan_only:bool": medscan_only,
-                            "sparser_only:bool": set(source_counts) == {"sparser"},
-                        }
-                        total_count += 1
-                        hashes_yielded.add(stmt_hash)
+
+        # Load the source counts and belief scores into dictionaries
+        logger.info("Loading source counts per hash")
+        with self.source_counts_fname.open("rb") as f:
+            source_counts = pickle.load(f)
+        logger.info("Loading belief scores per hash")
+        with self.belief_scores_fname.open("rb") as f:
+            belief_scores = pickle.load(f)
+
+        hashes_yielded = set()
+        with gzip.open(self.stmts_fname, "rt") as fh:
+            reader = csv.reader(fh, delimiter="\t")
+            for sh_str, stmt_json_str in tqdm(reader, desc="Reading statements"):
+                stmt_hash = int(sh_str)
+                try:
+                    source_count = source_counts[stmt_hash]
+                    belief = belief_scores[stmt_hash]
+                except KeyError:
+                    # NOTE: this should not happen if files are generated
+                    # properly and are up to date.
+                    logger.warning(
+                        f"Could not find source count or belief score for "
+                        f"statement hash {stmt_hash}. Are the source files updated?"
+                    )
+                    continue
+                # If we already yielded this statement, we can skip it
+                # NOTE: statements should be unique.
+                if stmt_hash in hashes_yielded:
+                    logger.warning(
+                        f"Found duplicate hash {stmt_hash} among unique statements"
+                    )
+                    continue
+                stmt_json = load_statement_json(stmt_json_str)
+                ev_list = stmt_json["evidence"]
+                stripped_json = [ev_list[0]]
+                data = {
+                    "stmt_hash:long": stmt_hash,
+                    "source_counts:string": json.dumps(source_count),
+                    "evidence_count:int": len(ev_list),
+                    "stmt_type:string": stmt_json["stmt_type"],
+                    "belief:float": belief,
+                    "stmt_json:string": json.dumps(stripped_json),
+                    "has_database_evidence:bool": any(
+                        source in db_sources for source in source_counts
+                    ),
+                    "has_reader_evidence:bool": any(
+                        source in reader_sources for source in source_counts
+                    ),
+                    "medscan_only:bool": set(source_counts) == {"medscan"},
+                    "sparser_only:bool": set(source_counts) == {"sparser"},
+                }
+
+                # Get the agents from the statement
+                agents: List[Agent] = [
+                    ag for ag in stmt_json["agent_list"] if ag is not None
+                ]
+                if len(agents) < 2:
+                    logger.warning(
+                        f"Statement {stmt_hash} has less than two agents. Skipping."
+                    )
+                    continue
+                elif len(agents) == 2:
+                    ag_a, ag_b = agents
+                    ns_a, id_a = ag_a.get_grounding()
+                    ns_b, id_b = ag_b.get_grounding()
+                    yield Relation(
+                        ns_a,
+                        id_a,
+                        ns_b,
+                        id_b,
+                        rel_type,
+                        data,
+                    )
+                    total_count += 1
+                elif 2 < len(agents) <= max_complex_members:
+                    # This is a complex, so we need to yield a relation for
+                    # each pair of agents of the complex
+                    for ag_a, ag_b in combinations(agents, 2):
+                        ns_a, id_a = ag_a.get_grounding()
+                        ns_b, id_b = ag_b.get_grounding()
                         yield Relation(
-                            values["agA_ns"],
-                            values["agA_id"],
-                            values["agB_ns"],
-                            values["agB_id"],
+                            ns_a,
+                            id_a,
+                            ns_b,
+                            id_b,
                             rel_type,
                             data,
                         )
-                    # This statement is not in df
-                    except KeyError:
-                        continue
-        # Otherwise only process the SIF dataframe
-        else:
-            for (
-                source_ns,
-                source_id,
-                target_ns,
-                target_id,
-                stmt_type,
-                source_counts,
-                evidence_count,
-                belief,
-                stmt_hash,
-            ) in (
-                self.df[columns].drop_duplicates().values
-            ):
-                data = {
-                    "stmt_hash:long": stmt_hash,
-                    "source_counts:string": source_counts,
-                    "evidence_count:int": evidence_count,
-                    "stmt_type:string": stmt_type,
-                    "belief:float": belief,
-                }
-                total_count += 1
-                yield Relation(
-                    source_ns,
-                    source_id,
-                    target_ns,
-                    target_id,
-                    rel_type,
-                    data,
-                )
-        logger.info(f"Got {total_count} total relations")
+                        total_count += 1
+                else:
+                    logger.warning(
+                        f"Statement {stmt_hash} has more than {max_complex_members} agents. Skipping."
+                    )
+                    continue
+
+                hashes_yielded.add(stmt_hash)
+
+        logger.info(
+            f"Got {total_count} total relations from {len(hashes_yielded)} unique statements"
+        )
 
     @classmethod
     def get_cli(cls) -> click.Command:
@@ -283,63 +238,53 @@ class EvidenceProcessor(Processor):
     node_types = ["Evidence", "Publication"]
 
     def __init__(self):
-        base_path = pystow.module("indra", "db")
-        self.statements_path = base_path.join(name="statements_with_evidences.tsv.gz")
-        self.text_refs_path = base_path.join(name="text_refs_for_reading.tsv.gz")
-        self.sif_path = base_path.join(name="sif.pkl")
+        """Initialize the Evidence processor"""
+        self.stmt_fname = self.grounded_stmts_fname = grounded_stmts_fname
         self._stmt_id_pmid_links = {}
         # Check if files exist without loading them
-        for path in [self.statements_path, self.text_refs_path, self.sif_path]:
-            if not path.exists():
-                raise FileNotFoundError(f"No such file: {path}")
+        if not self.stmt_fname.exists():
+            raise FileNotFoundError(f"No such file: {self.stmt_fname}")
 
-    def get_nodes(self) -> Iterable[Node]:
-        """Get nodes from the SIF file."""
-        # Load the text ref lookup so that we can set text refs in
-        # evidences
-        logger.info("Getting text refs from text refs file")
-        text_refs = load_text_refs_for_reading_dict(self.text_refs_path.as_posix())
-        # Get a list of hashes from the SIF file so that we only
-        # add nodes/relations for statements that are in the SIF file
-        logger.info("Getting hashes from SIF file")
-        with open(self.sif_path, "rb") as fh:
-            sif = pickle.load(fh)
-        sif_hashes = set(sif["stmt_hash"])
-        logger.info("Getting statements from statements file")
-        with gzip.open(self.statements_path, "rt", encoding="utf-8") as fh:
+    def get_nodes(self, num_rows: Optional[int] = None) -> Iterable[Node]:
+        """Get INDRA Evidence and Publication nodes"""
+        # Loop the grounded statements and get the evidence w text refs
+        logger.info("Looping statements from statements file")
+        with gzip.open(self.stmt_fname.as_posix(), "rt") as fh:
             # TODO test whether this is a reasonable size
             batch_size = 100000
             # TODO get number of batches from the total number of statements
-            # rather than hardcoding
-            total = 352
+            #  rather than hardcoding
+            total = num_rows // batch_size + 1 if num_rows else 352
             reader = csv.reader(fh, delimiter="\t")
+            yield_index = 0
             for batch in tqdm(
                 batch_iter(reader, batch_size=batch_size, return_func=list),
                 total=total,
             ):
                 node_batch = []
-                for raw_stmt_id, reading_id, stmt_hash, raw_json_str, _ in batch:
-                    stmt_hash = int(stmt_hash)
-                    if stmt_hash not in sif_hashes:
-                        continue
+                for stmt_hash_str, stmt_json_str in batch:
+                    stmt_hash = int(stmt_hash_str)
                     try:
-                        raw_json = load_statement_json(raw_json_str)
+                        stmt_json = load_statement_json(stmt_json_str)
                     except StatementJSONDecodeError as e:
                         logger.warning(e)
-                    evidence = raw_json["evidence"][0]
-                    # Set text refs and get Publication node
-                    pubmed_node = None
-                    if reading_id != "\\N":
-                        tr = text_refs[reading_id]
-                        evidence["text_refs"] = tr
-                        if "PMID" in evidence["text_refs"]:
-                            evidence["pmid"] = evidence["text_refs"]["PMID"]
-                            self._stmt_id_pmid_links[raw_stmt_id] = evidence["pmid"]
+                        continue
+
+                    # Loop all evidences
+                    evidence_list = stmt_json["evidence"]
+                    for evidence in evidence_list:
+                        pubmed_node = None
+                        tr = evidence["text_refs"]
+
+                        # Add publication Nodes if we have a PMID
+                        if "PMID" in tr:
+                            pmid = tr["PMID"]
+                            self._stmt_id_pmid_links[yield_index] = pmid
                             pubmed_node = Node(
-                                "PUBMED",
-                                evidence["pmid"],
-                                ["Publication"],
-                                {
+                                db_ns="PUBMED",
+                                db_id=pmid,
+                                labels=["Publication"],
+                                data={
                                     "trid": tr.get("TRID"),
                                     "pmcid": tr.get("PMCID"),
                                     "doi": tr.get("DOI"),
@@ -348,34 +293,38 @@ class EvidenceProcessor(Processor):
                                     "manuscript_id": tr.get("ManuscriptID"),
                                 },
                             )
-                        else:
-                            evidence["pmid"] = None
-                    else:
-                        if evidence.get("pmid"):
-                            self._stmt_id_pmid_links[raw_stmt_id] = evidence["pmid"]
+                        elif evidence.get("pmid"):
+                            self._stmt_id_pmid_links[yield_index] = evidence["pmid"]
                             pubmed_node = Node(
-                                "PUBMED",
-                                evidence["pmid"],
-                                ["Publication"],
+                                db_ns="PUBMED",
+                                db_id=evidence["pmid"],
+                                labels=["Publication"],
                             )
-                    node_batch.append(
-                        Node(
-                            "indra_evidence",
-                            raw_stmt_id,
-                            ["Evidence"],
-                            {
-                                "evidence:string": json.dumps(evidence),
-                                "stmt_hash:long": stmt_hash,
-                            },
+                        if pubmed_node:
+                            # Add Publication node to batch if it was created
+                            node_batch.append(pubmed_node)
+
+                        # Add Evidence node for this evidence
+                        node_batch.append(
+                            Node(
+                                db_ns="indra_evidence",
+                                db_id=str(yield_index),
+                                labels=["Evidence"],
+                                data={
+                                    "evidence:string": json.dumps(evidence),
+                                    "stmt_hash:long": stmt_hash,
+                                },
+                            )
                         )
-                    )
-                    if pubmed_node:
-                        node_batch.append(pubmed_node)
+                        yield_index += 1
+
                 yield node_batch
 
     def get_relations(self):
-        for stmt_id, pmid in self._stmt_id_pmid_links.items():
-            yield Relation("indra_evidence", stmt_id, "PUBMED", pmid, "has_citation")
+        for yield_index, pmid in self._stmt_id_pmid_links.items():
+            yield Relation(
+                "indra_evidence", yield_index, "PUBMED", pmid, "has_citation"
+            )
 
     def _dump_nodes(self) -> Path:
         # This overrides the default implementation in Processor because
