@@ -17,7 +17,7 @@ from typing import Iterable, Optional, Tuple, Union, List
 
 import click
 from indra.databases.identifiers import ensure_prefix_if_needed
-from indra.statements import Agent, default_ns_order
+from indra.statements import Agent
 from indra.util import batch_iter
 from indra.util.statement_presentation import db_sources, reader_sources
 from more_click import verbose_option
@@ -39,7 +39,17 @@ from indra_cogex.sources.indra_db.raw_export import (
 logger = logging.getLogger(__name__)
 tqdm.pandas()
 
-extended_ns_order = default_ns_order.append("NCIT")
+ns_priority_list = (
+    "FPLX",
+    "HGNC",
+    "UP",
+    "CHEBI",
+    "GO",
+    "MESH",
+    "HMDB",
+    "PUBCHEM",
+    "NCIT",
+)
 
 
 # If you don't have the data, run the script in raw_export.py and then in
@@ -87,7 +97,7 @@ class DbProcessor(Processor):
                 stmts = stmts_from_json(sj_list)
                 for stmt in stmts:
                     for agent in stmt.real_agent_list():
-                        db_ns, db_id = agent.get_grounding(ns_order=extended_ns_order)
+                        db_ns, db_id = get_ag_ns_id(agent)
                         if (db_ns, db_id) not in seen_agents:
                             # Todo: do we need to use bio_ontology.get_name()?
                             yield Node(
@@ -164,8 +174,8 @@ class DbProcessor(Processor):
                     continue
                 elif len(agents) == 2:
                     ag_a, ag_b = agents
-                    ns_a, id_a = ag_a.get_grounding(ns_order=extended_ns_order)
-                    ns_b, id_b = ag_b.get_grounding(ns_order=extended_ns_order)
+                    ns_a, id_a = get_ag_ns_id(ag_a)
+                    ns_b, id_b = get_ag_ns_id(ag_b)
                     yield Relation(
                         ns_a,
                         id_a,
@@ -179,8 +189,8 @@ class DbProcessor(Processor):
                     # This is a complex, so we need to yield a relation for
                     # each pair of agents of the complex
                     for ag_a, ag_b in combinations(agents, 2):
-                        ns_a, id_a = ag_a.get_grounding(ns_order=extended_ns_order)
-                        ns_b, id_b = ag_b.get_grounding(ns_order=extended_ns_order)
+                        ns_a, id_a = get_ag_ns_id(ag_a)
+                        ns_b, id_b = get_ag_ns_id(ag_b)
                         yield Relation(
                             ns_a,
                             id_a,
@@ -379,6 +389,21 @@ class EvidenceProcessor(Processor):
 
 class StatementJSONDecodeError(Exception):
     pass
+
+
+def get_ag_ns_id(ag: Agent) -> Tuple[str, str]:
+    """Return a namespace, identifier tuple for a given agent.
+
+    Args:
+        ag: An INDRA Agent object.
+
+    Returns:
+        A namespace, identifier tuple.
+    """
+    for ns in ns_priority_list:
+        if ns in ag.db_refs:
+            return ns, ag.db_refs[ns]
+    return "TEXT", ag.name
 
 
 def load_statement_json(json_str: str, attempt: int = 1, max_attempts: int = 5) -> json:
