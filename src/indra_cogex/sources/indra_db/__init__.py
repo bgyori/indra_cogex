@@ -87,7 +87,6 @@ class DbProcessor(Processor):
                     for agent in stmt.real_agent_list():
                         db_ns, db_id = get_ag_ns_id(agent)
                         if (db_ns, db_id) not in seen_agents:
-                            # Todo: do we need to use bio_ontology.get_name()?
                             yield Node(
                                 db_ns, db_id, ["BioEntity"], dict(name=agent.name)
                             )
