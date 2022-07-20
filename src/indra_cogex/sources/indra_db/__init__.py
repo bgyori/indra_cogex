@@ -236,63 +236,53 @@ class EvidenceProcessor(Processor):
     node_types = ["Evidence", "Publication"]
 
     def __init__(self):
-        base_path = pystow.module("indra", "db")
-        self.statements_path = base_path.join(name="statements_with_evidences.tsv.gz")
-        self.text_refs_path = base_path.join(name="text_refs_for_reading.tsv.gz")
-        self.sif_path = base_path.join(name="sif.pkl")
+        """Initialize the Evidence processor"""
+        self.stmt_fname = unique_stmts_fname
         self._stmt_id_pmid_links = {}
         # Check if files exist without loading them
-        for path in [self.statements_path, self.text_refs_path, self.sif_path]:
-            if not path.exists():
-                raise FileNotFoundError(f"No such file: {path}")
+        if not self.stmt_fname.exists():
+            raise FileNotFoundError(f"No such file: {self.stmt_fname}")
 
-    def get_nodes(self) -> Iterable[Node]:
-        """Get nodes from the SIF file."""
-        # Load the text ref lookup so that we can set text refs in
-        # evidences
-        logger.info("Getting text refs from text refs file")
-        text_refs = load_text_refs_for_reading_dict(self.text_refs_path.as_posix())
-        # Get a list of hashes from the SIF file so that we only
-        # add nodes/relations for statements that are in the SIF file
-        logger.info("Getting hashes from SIF file")
-        with open(self.sif_path, "rb") as fh:
-            sif = pickle.load(fh)
-        sif_hashes = set(sif["stmt_hash"])
-        logger.info("Getting statements from statements file")
-        with gzip.open(self.statements_path, "rt", encoding="utf-8") as fh:
+    def get_nodes(self, num_rows: Optional[int] = None) -> Iterable[Node]:
+        """Get INDRA Evidence and Publication nodes"""
+        # Loop unique statements and get the evidence w text refs
+        logger.info("Looping statements from statements file")
+        with gzip.open(self.stmt_fname.as_posix(), "rt") as fh:
             # TODO test whether this is a reasonable size
             batch_size = 100000
             # TODO get number of batches from the total number of statements
-            # rather than hardcoding
-            total = 352
+            #  rather than hardcoding
+            total = num_rows // batch_size + 1 if num_rows else 352
             reader = csv.reader(fh, delimiter="\t")
+            yield_index = 0
             for batch in tqdm(
                 batch_iter(reader, batch_size=batch_size, return_func=list),
                 total=total,
             ):
                 node_batch = []
-                for raw_stmt_id, reading_id, stmt_hash, raw_json_str, _ in batch:
-                    stmt_hash = int(stmt_hash)
-                    if stmt_hash not in sif_hashes:
-                        continue
+                for stmt_hash_str, stmt_json_str in batch:
+                    stmt_hash = int(stmt_hash_str)
                     try:
-                        raw_json = load_statement_json(raw_json_str)
+                        stmt_json = load_statement_json(stmt_json_str)
                     except StatementJSONDecodeError as e:
                         logger.warning(e)
-                    evidence = raw_json["evidence"][0]
-                    # Set text refs and get Publication node
-                    pubmed_node = None
-                    if reading_id != "\\N":
-                        tr = text_refs[reading_id]
-                        evidence["text_refs"] = tr
-                        if "PMID" in evidence["text_refs"]:
-                            evidence["pmid"] = evidence["text_refs"]["PMID"]
-                            self._stmt_id_pmid_links[raw_stmt_id] = evidence["pmid"]
+                        continue
+
+                    # Loop all evidences
+                    evidence_list = stmt_json["evidence"]
+                    for evidence in evidence_list:
+                        pubmed_node = None
+                        tr = evidence["text_refs"]
+
+                        # Add publication Nodes if we have a PMID
+                        if "PMID" in tr:
+                            pmid = tr["PMID"]
+                            self._stmt_id_pmid_links[yield_index] = pmid
                             pubmed_node = Node(
-                                "PUBMED",
-                                evidence["pmid"],
-                                ["Publication"],
-                                {
+                                db_ns="PUBMED",
+                                db_id=pmid,
+                                labels=["Publication"],
+                                data={
                                     "trid": tr.get("TRID"),
                                     "pmcid": tr.get("PMCID"),
                                     "doi": tr.get("DOI"),
@@ -301,34 +291,38 @@ class EvidenceProcessor(Processor):
                                     "manuscript_id": tr.get("ManuscriptID"),
                                 },
                             )
-                        else:
-                            evidence["pmid"] = None
-                    else:
-                        if evidence.get("pmid"):
-                            self._stmt_id_pmid_links[raw_stmt_id] = evidence["pmid"]
+                        elif evidence.get("pmid"):
+                            self._stmt_id_pmid_links[yield_index] = evidence["pmid"]
                             pubmed_node = Node(
-                                "PUBMED",
-                                evidence["pmid"],
-                                ["Publication"],
+                                db_ns="PUBMED",
+                                db_id=evidence["pmid"],
+                                labels=["Publication"],
                             )
-                    node_batch.append(
-                        Node(
-                            "indra_evidence",
-                            raw_stmt_id,
-                            ["Evidence"],
-                            {
-                                "evidence:string": json.dumps(evidence),
-                                "stmt_hash:long": stmt_hash,
-                            },
+                        if pubmed_node:
+                            # Add Publication node to batch if it was created
+                            node_batch.append(pubmed_node)
+
+                        # Add Evidence node for this evidence
+                        node_batch.append(
+                            Node(
+                                db_ns="indra_evidence",
+                                db_id=str(yield_index),
+                                labels=["Evidence"],
+                                data={
+                                    "evidence:string": json.dumps(evidence),
+                                    "stmt_hash:long": stmt_hash,
+                                },
+                            )
                         )
-                    )
-                    if pubmed_node:
-                        node_batch.append(pubmed_node)
+                        yield_index += 1
+
                 yield node_batch
 
     def get_relations(self):
-        for stmt_id, pmid in self._stmt_id_pmid_links.items():
-            yield Relation("indra_evidence", stmt_id, "PUBMED", pmid, "has_citation")
+        for yield_index, pmid in self._stmt_id_pmid_links.items():
+            yield Relation(
+                "indra_evidence", yield_index, "PUBMED", pmid, "has_citation"
+            )
 
     def _dump_nodes(self) -> Path:
         # This overrides the default implementation in Processor because
