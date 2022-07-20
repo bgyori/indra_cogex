@@ -17,7 +17,7 @@ from typing import Iterable, Optional, Tuple, Union, List
 
 import click
 from indra.databases.identifiers import ensure_prefix_if_needed
-from indra.statements import Agent
+from indra.statements import Agent, default_ns_order
 from indra.util import batch_iter
 from indra.util.statement_presentation import db_sources, reader_sources
 from more_click import verbose_option
@@ -38,18 +38,6 @@ from indra_cogex.sources.indra_db.raw_export import (
 
 logger = logging.getLogger(__name__)
 tqdm.pandas()
-
-ns_priority_list = (
-    "FPLX",
-    "HGNC",
-    "UP",
-    "CHEBI",
-    "GO",
-    "MESH",
-    "HMDB",
-    "PUBCHEM",
-    "NCIT",
-)
 
 
 # If you don't have the data, run the script in raw_export.py and then in
@@ -106,9 +94,6 @@ class DbProcessor(Processor):
                             seen_agents.add((db_ns, db_id))
 
     def get_relations(self, max_complex_members: int = 3):  # noqa:D102
-        # todo: Should this method call the source scripts for statements,
-        #  source counts and belief calculations? They will take 12+ hours
-        #  altogether.
         rel_type = "indra_rel"
         total_count = 0
 
@@ -404,7 +389,7 @@ def get_ag_ns_id(ag: Agent) -> Tuple[str, str]:
     :
         A namespace, identifier tuple.
     """
-    for ns in ns_priority_list:
+    for ns in default_ns_order:
         if ns in ag.db_refs:
             return ns, ag.db_refs[ns]
     return "TEXT", ag.name
