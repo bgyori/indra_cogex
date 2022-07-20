@@ -13,11 +13,11 @@ import textwrap
 from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
-from typing import Iterable, Optional, Tuple, Union, List, Dict
+from typing import Iterable, Optional, Tuple, Union, List
 
 import click
 from indra.databases.identifiers import ensure_prefix_if_needed
-from indra.statements import Agent
+from indra.statements import Agent, default_ns_order
 from indra.util import batch_iter
 from indra.util.statement_presentation import db_sources, reader_sources
 from more_click import verbose_option
@@ -38,6 +38,8 @@ from indra_cogex.sources.indra_db.raw_export import (
 
 logger = logging.getLogger(__name__)
 tqdm.pandas()
+
+extended_ns_order = default_ns_order.append("NCIT")
 
 
 # If you don't have the data, run the script in raw_export.py and then in
@@ -85,7 +87,7 @@ class DbProcessor(Processor):
                 stmts = stmts_from_json(sj_list)
                 for stmt in stmts:
                     for agent in stmt.real_agent_list():
-                        db_ns, db_id = agent.get_grounding()
+                        db_ns, db_id = agent.get_grounding(ns_order=extended_ns_order)
                         if (db_ns, db_id) not in seen_agents:
                             # Todo: do we need to use bio_ontology.get_name()?
                             yield Node(
@@ -162,8 +164,8 @@ class DbProcessor(Processor):
                     continue
                 elif len(agents) == 2:
                     ag_a, ag_b = agents
-                    ns_a, id_a = ag_a.get_grounding()
-                    ns_b, id_b = ag_b.get_grounding()
+                    ns_a, id_a = ag_a.get_grounding(ns_order=extended_ns_order)
+                    ns_b, id_b = ag_b.get_grounding(ns_order=extended_ns_order)
                     yield Relation(
                         ns_a,
                         id_a,
@@ -177,8 +179,8 @@ class DbProcessor(Processor):
                     # This is a complex, so we need to yield a relation for
                     # each pair of agents of the complex
                     for ag_a, ag_b in combinations(agents, 2):
-                        ns_a, id_a = ag_a.get_grounding()
-                        ns_b, id_b = ag_b.get_grounding()
+                        ns_a, id_a = ag_a.get_grounding(ns_order=extended_ns_order)
+                        ns_b, id_b = ag_b.get_grounding(ns_order=extended_ns_order)
                         yield Relation(
                             ns_a,
                             id_a,
