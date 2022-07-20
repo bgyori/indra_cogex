@@ -34,6 +34,7 @@ from indra_cogex.sources.indra_db.assembly import belief_scores_pkl_fname
 from indra_cogex.sources.indra_db.raw_export import (
     source_counts_fname,
     unique_stmts_fname,
+    grounded_stmts_fname,
     stmts_from_json,
     raw_stmts_fname,
     text_refs_fname,
@@ -242,7 +243,7 @@ class EvidenceProcessor(Processor):
 
     def __init__(self):
         """Initialize the Evidence processor"""
-        self.stmt_fname = unique_stmts_fname
+        self.stmt_fname = self.grounded_stmts_fname = grounded_stmts_fname
         self._stmt_id_pmid_links = {}
         # Check if files exist without loading them
         if not self.stmt_fname.exists():
@@ -250,7 +251,7 @@ class EvidenceProcessor(Processor):
 
     def get_nodes(self, num_rows: Optional[int] = None) -> Iterable[Node]:
         """Get INDRA Evidence and Publication nodes"""
-        # Loop unique statements and get the evidence w text refs
+        # Loop the grounded statements and get the evidence w text refs
         logger.info("Looping statements from statements file")
         with gzip.open(self.stmt_fname.as_posix(), "rt") as fh:
             # TODO test whether this is a reasonable size
