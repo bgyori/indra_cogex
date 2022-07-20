@@ -16,11 +16,7 @@ from pathlib import Path
 from typing import Iterable, Optional, Tuple, Union, List, Dict
 
 import click
-import humanize
-import pandas as pd
-import pystow
 from indra.databases.identifiers import ensure_prefix_if_needed
-from indra.ontology.bio import bio_ontology
 from indra.statements import Agent
 from indra.util import batch_iter
 from indra.util.statement_presentation import db_sources, reader_sources
