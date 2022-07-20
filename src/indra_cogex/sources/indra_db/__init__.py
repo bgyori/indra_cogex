@@ -408,19 +408,6 @@ def load_text_refs_for_reading_dict(fname: str):
     return text_refs
 
 
-def load_raw_stmt_id_for_src_hash_dict() -> Dict[str, str]:
-    logger.info("Loading raw stmt id for pmid lookup dictionary")
-    raw_stmt_id_for_source_hash = {}
-    with gzip.open(raw_stmts_fname, "rt", encoding="utf-8") as fh:
-        reader = csv.reader(fh, delimiter="\t")
-        for raw_stmt_id, db_info_id, reading_id, stmt_json_raw in reader:
-            raw_stmt_json = load_statement_json(stmt_json_raw)
-            ev_json = raw_stmt_json["evidence"][0]
-            src_hash = ev_json["source_hash"]
-            raw_stmt_id_for_source_hash[src_hash] = raw_stmt_id
-    return raw_stmt_id_for_source_hash
-
-
 def ensure_statements_with_evidences(fname):
     if os.path.exists(fname):
         logger.info(f"Found existing statements with evidences in {fname}")
