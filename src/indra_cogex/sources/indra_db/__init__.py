@@ -394,10 +394,14 @@ class StatementJSONDecodeError(Exception):
 def get_ag_ns_id(ag: Agent) -> Tuple[str, str]:
     """Return a namespace, identifier tuple for a given agent.
 
-    Args:
-        ag: An INDRA Agent object.
+    Parameters
+    ----------
+    ag :
+        The agent to get the namespace and identifier for.
 
-    Returns:
+    Returns
+    -------
+    :
         A namespace, identifier tuple.
     """
     for ns in ns_priority_list:
