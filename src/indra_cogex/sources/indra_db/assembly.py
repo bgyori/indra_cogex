@@ -66,7 +66,7 @@ def get_refinement_graph() -> nx.DiGraph:
     # Loop statements: the outer index runs all batches while the inner index
     # runs outer index < inner index <= num_batches. This way the outer
     # index runs the "diagonal" of the combinations while the inner index runs
-    # the "off-diagonal" of the combinations.
+    # the upper triangle of the combinations.
 
     # Open two csv readers to the same file
     if not refinements_fname.exists():
