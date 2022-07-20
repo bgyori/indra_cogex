@@ -34,7 +34,9 @@ from indra_cogex.sources.indra_db.assembly import belief_scores_pkl_fname
 from indra_cogex.sources.indra_db.raw_export import (
     source_counts_fname,
     unique_stmts_fname,
-    stmts_from_json, raw_stmts_fname, text_refs_fname,
+    stmts_from_json,
+    raw_stmts_fname,
+    text_refs_fname,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,11 +76,14 @@ class DbProcessor(Processor):
         # The file contains statements that have already been filtered for
         # ungrounded statements, so we can just use the agent list.
         batch_size = 100000
-        with gzip.open(self.stmts_fname, "rt") as f:
+        with gzip.open(self.stmts_fname.as_posix(), "rt") as f:
             reader = csv.reader(f, delimiter="\t")
             seen_agents = set()  # Store ns:id pairs of seen agents
 
-            for batch in batch_iter(reader, batch_size=batch_size, return_func=list):
+            for batch in tqdm(
+                batch_iter(reader, batch_size=batch_size, return_func=list),
+                desc="Getting BioEntity nodes",
+            ):
                 sj_list = [load_statement_json(sjs) for _, sjs in batch]
                 stmts = stmts_from_json(sj_list)
                 for stmt in stmts:
