@@ -287,6 +287,8 @@ def sample_unique_stmts(
             if index in indices:
                 stmts.append((int(sh), stmt_from_json(load_statement_json(sjs))))
                 t.update()
+                if len(stmts) == num:
+                    break
 
     t.close()
     return stmts
