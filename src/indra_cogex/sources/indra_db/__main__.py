@@ -8,13 +8,10 @@ from . import DbProcessor, EvidenceProcessor
 
 
 @click.command()
-@click.option(
-    "--add_jsons", is_flag=True, help="Add statements JSONs in indra_rel relation data"
-)
 @verbose_option
 @click.pass_context
-def _main(ctx: click.Context, add_jsons: bool):
-    ctx.invoke(DbProcessor.get_cli(), add_jsons=add_jsons)
+def _main(ctx: click.Context):
+    ctx.invoke(DbProcessor.get_cli())
     ctx.invoke(EvidenceProcessor.get_cli())
 
 
