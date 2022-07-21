@@ -247,6 +247,17 @@ class EvidenceProcessor(Processor):
 
     def get_nodes(self, num_rows: Optional[int] = None) -> Iterable[Node]:
         """Get INDRA Evidence and Publication nodes"""
+        # First, we need to figure out which Statements were actually
+        # selected in the DbProcessor and only include evidences for those.
+        included_hashes = set()
+        logger.info("Loading relevant statement hashes...")
+        with gzip.open(DbProcessor.edges_path, "rt") as fh:
+            reader = csv.reader(fh, delimiter="\t")
+            header = next(reader)
+            hash_idx = header.index("stmt_hash:long")
+            for row in reader:
+                included_hashes.add(int(row[hash_idx]))
+
         # Loop the grounded statements and get the evidence w text refs
         logger.info("Looping statements from statements file")
         with gzip.open(self.stmt_fname.as_posix(), "rt") as fh:
@@ -264,6 +275,8 @@ class EvidenceProcessor(Processor):
                 node_batch = []
                 for stmt_hash_str, stmt_json_str in batch:
                     stmt_hash = int(stmt_hash_str)
+                    if stmt_hash not in included_hashes:
+                        continue
                     try:
                         stmt_json = load_statement_json(stmt_json_str)
                     except StatementJSONDecodeError as e:
@@ -271,16 +284,12 @@ class EvidenceProcessor(Processor):
                         continue
 
                     # Loop all evidences
+                    # NOTE: there should be a single evidence for each
+                    # statement so looping is probably not necessary
                     evidence_list = stmt_json["evidence"]
                     for evidence in evidence_list:
                         pubmed_node = None
-                        try:
-                            tr = evidence["text_refs"]
-                        except KeyError:
-                            logger.warning(
-                                f"Evidence {evidence['source_hash']} has no text refs. Skipping."
-                            )
-                            continue
+                        tr = evidence.get("text_refs")
 
                         # Add publication Nodes if we have a PMID
                         if "PMID" in tr:
@@ -296,7 +305,7 @@ class EvidenceProcessor(Processor):
                                     "doi": tr.get("DOI"),
                                     "pii": tr.get("PII"),
                                     "url": tr.get("URL"),
-                                    "manuscript_id": tr.get("ManuscriptID"),
+                                    "manuscript_id": tr.get("MANUSCRIPT_ID"),
                                 },
                             )
                         elif evidence.get("pmid"):
