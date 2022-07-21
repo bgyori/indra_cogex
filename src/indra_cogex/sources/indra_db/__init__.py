@@ -134,7 +134,7 @@ class DbProcessor(Processor):
                     "stmt_hash:long": stmt_hash,
                     "source_counts:string": json.dumps(source_count),
                     "evidence_count:int": len(ev_list),
-                    "stmt_type:string": stmt_json["stmt_type"],
+                    "stmt_type:string": stmt_json["type"],
                     "belief:float": belief,
                     "stmt_json:string": json.dumps(stripped_json),
                     "has_database_evidence:bool": any(
