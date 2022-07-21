@@ -270,7 +270,13 @@ class EvidenceProcessor(Processor):
                     evidence_list = stmt_json["evidence"]
                     for evidence in evidence_list:
                         pubmed_node = None
-                        tr = evidence["text_refs"]
+                        try:
+                            tr = evidence["text_refs"]
+                        except KeyError:
+                            logger.warning(
+                                f"Evidence {evidence['source_hash']} has no text refs. Skipping."
+                            )
+                            continue
 
                         # Add publication Nodes if we have a PMID
                         if "PMID" in tr:
