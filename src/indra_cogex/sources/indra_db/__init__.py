@@ -86,7 +86,7 @@ class DbProcessor(Processor):
                 for stmt in stmts:
                     for agent in stmt.real_agent_list():
                         db_ns, db_id = get_ag_ns_id(agent)
-                        if (db_ns, db_id) not in seen_agents:
+                        if db_ns and db_id and (db_ns, db_id) not in seen_agents:
                             yield Node(
                                 db_ns, db_id, ["BioEntity"], dict(name=agent.name)
                             )
@@ -160,6 +160,8 @@ class DbProcessor(Processor):
                     ag_a, ag_b = agents
                     ns_a, id_a = get_ag_ns_id(ag_a)
                     ns_b, id_b = get_ag_ns_id(ag_b)
+                    if not (ns_a and id_a and ns_b and id_b):
+                        continue
                     yield Relation(
                         ns_a,
                         id_a,
@@ -175,6 +177,8 @@ class DbProcessor(Processor):
                     for ag_a, ag_b in combinations(agents, 2):
                         ns_a, id_a = get_ag_ns_id(ag_a)
                         ns_b, id_b = get_ag_ns_id(ag_b)
+                        if not (ns_a and id_a and ns_b and id_b):
+                            continue
                         yield Relation(
                             ns_a,
                             id_a,
@@ -397,7 +401,7 @@ def get_ag_ns_id(ag: Agent) -> Tuple[str, str]:
     for ns in default_ns_order:
         if ns in ag.db_refs:
             return ns, ag.db_refs[ns]
-    return "TEXT", ag.name
+    return None, None
 
 
 def load_statement_json(json_str: str, attempt: int = 1, max_attempts: int = 5) -> json:
