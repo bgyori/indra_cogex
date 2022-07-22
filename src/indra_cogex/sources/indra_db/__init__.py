@@ -248,10 +248,9 @@ class EvidenceProcessor(Processor):
                         pubmed_node = None
                         tr = evidence.get("text_refs", {})
 
-                        # Add publication Nodes if we have a PMID
-                        if "PMID" in tr:
+                        # Add publication Nodes if we have a non-empty PMID
+                        if tr.get("PMID"):
                             pmid = tr["PMID"]
-                            self._stmt_id_pmid_links[yield_index] = pmid
                             pubmed_node = Node(
                                 db_ns="PUBMED",
                                 db_id=pmid,
@@ -265,13 +264,14 @@ class EvidenceProcessor(Processor):
                                     "manuscript_id": tr.get("MANUSCRIPT_ID"),
                                 },
                             )
+                            self._stmt_id_pmid_links[yield_index] = pmid
                         elif evidence.get("pmid"):
-                            self._stmt_id_pmid_links[yield_index] = evidence["pmid"]
                             pubmed_node = Node(
                                 db_ns="PUBMED",
                                 db_id=evidence["pmid"],
                                 labels=["Publication"],
                             )
+                            self._stmt_id_pmid_links[yield_index] = evidence["pmid"]
                         if pubmed_node:
                             # Add Publication node to batch if it was created
                             node_batch.append(pubmed_node)

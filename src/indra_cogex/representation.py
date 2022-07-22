@@ -51,7 +51,7 @@ class Node:
             An optional data dictionary associated with the node.
         """
         if not db_ns or not db_id:
-            raise ValueError("Invalid namespace or ID.")
+            raise ValueError("Missing namespace or ID.")
         self.db_ns = db_ns
         self.db_id = db_id
         self.labels = labels
