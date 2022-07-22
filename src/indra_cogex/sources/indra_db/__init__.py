@@ -24,7 +24,7 @@ from indra.statements import (
     Conversion,
 )
 from indra.util import batch_iter
-from indra.util.statement_presentation import db_sources, reader_sources
+from indra.sources import SOURCE_INFO
 from tqdm import tqdm
 
 from indra_cogex.representation import Node, Relation
@@ -41,7 +41,10 @@ from indra_cogex.sources.indra_db.raw_export import (
 )
 
 logger = logging.getLogger(__name__)
-tqdm.pandas()
+
+
+reader_sources = {k for k, v in SOURCE_INFO.items() if v["type"] == "reader"}
+db_sources = {k for k, v in SOURCE_INFO.items() if v["type"] == "database"}
 
 
 # If you don't have the data, run the script in raw_export.py and then in
@@ -135,10 +138,10 @@ class DbProcessor(Processor):
                     "belief:float": belief,
                     "stmt_json:string": json.dumps(stmt_json),
                     "has_database_evidence:bool": (
-                        True if set(source_count) & set(db_sources) else False
+                        True if set(source_count) & db_sources else False
                     ),
                     "has_reader_evidence:bool": (
-                        True if set(source_count) & set(reader_sources) else False
+                        True if set(source_count) & reader_sources else False
                     ),
                     "medscan_only:bool": set(source_count) == {"medscan"},
                     "sparser_only:bool": set(source_count) == {"sparser"},
@@ -185,23 +188,6 @@ class DbProcessor(Processor):
         logger.info(
             f"Got {total_count} total relations from {len(hashes_yielded)} unique statements"
         )
-
-
-def fix_id(db_ns: str, db_id: str) -> Tuple[str, str]:
-    """Fix ID issues specific to the SIF dump."""
-    if db_ns == "GO":
-        if db_id.isnumeric():
-            db_id = "0" * (7 - len(db_id)) + db_id
-    if db_ns == "EFO" and db_id.startswith("EFO:"):
-        db_id = db_id[4:]
-    if db_ns == "UP" and db_id.startswith("SL"):
-        db_ns = "UPLOC"
-    if db_ns == "UP" and "-" in db_id and not db_id.startswith("SL-"):
-        db_id = db_id.split("-")[0]
-    if db_ns == "FPLX" and db_id == "TCF-LEF":
-        db_id = "TCF_LEF"
-    db_id = ensure_prefix_if_needed(db_ns, db_id)
-    return db_ns, db_id
 
 
 class EvidenceProcessor(Processor):
