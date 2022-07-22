@@ -170,7 +170,7 @@ class DbProcessor(Processor):
                 if isinstance(stmt, Complex):
                     if len(agents) > max_complex_members:
                         continue
-                    for (ns_a, id_a, ns_b, id_b) in permutations(agent_groundings, 2):
+                    for (ns_a, id_a), (ns_b, id_b) in permutations(agent_groundings, 2):
                         yield Relation(ns_a, id_a, ns_b, id_b, rel_type, data)
                         total_count += 1
                 # Otherwise we expect this to be a well behaved binary statement
