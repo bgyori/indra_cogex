@@ -11,16 +11,20 @@ import os
 import pickle
 import textwrap
 from collections import defaultdict
-from itertools import combinations
+from itertools import permutations
 from pathlib import Path
-from typing import Iterable, Optional, Tuple, Union, List
+from typing import Iterable, Optional, Tuple, Union
 
-import click
 from indra.databases.identifiers import ensure_prefix_if_needed
-from indra.statements import Agent, default_ns_order
+from indra.statements import (
+    Agent,
+    default_ns_order,
+    stmt_from_json,
+    Complex,
+    Conversion,
+)
 from indra.util import batch_iter
 from indra.util.statement_presentation import db_sources, reader_sources
-from more_click import verbose_option
 from tqdm import tqdm
 
 from indra_cogex.representation import Node, Relation
@@ -120,78 +124,60 @@ class DbProcessor(Processor):
                         f"statement hash {stmt_hash}. Are the source files updated?"
                     )
                     continue
-                # If we already yielded this statement, we can skip it
-                # NOTE: statements should be unique.
-                if stmt_hash in hashes_yielded:
-                    logger.warning(
-                        f"Found duplicate hash {stmt_hash} among unique statements"
-                    )
-                    continue
                 stmt_json = load_statement_json(stmt_json_str)
-                ev_list = stmt_json["evidence"]
-                stripped_json = [ev_list[0]]
+                if stmt_json["evidence"][0].source_api == "medscan":
+                    stmt_json["evidence"] = []
                 data = {
-                    "stmt_hash:long": stmt_hash,
+                    "stmt_hash:int": stmt_hash,
                     "source_counts:string": json.dumps(source_count),
-                    "evidence_count:int": len(ev_list),
+                    "evidence_count:int": sum(source_count.values()),
                     "stmt_type:string": stmt_json["type"],
                     "belief:float": belief,
-                    "stmt_json:string": json.dumps(stripped_json),
-                    "has_database_evidence:bool": any(
-                        source in db_sources for source in source_counts
+                    "stmt_json:string": json.dumps(stmt_json),
+                    "has_database_evidence:bool": (
+                        True if set(source_count) & set(db_sources) else False
                     ),
-                    "has_reader_evidence:bool": any(
-                        source in reader_sources for source in source_counts
+                    "has_reader_evidence:bool": (
+                        True if set(source_count) & set(reader_sources) else False
                     ),
-                    "medscan_only:bool": set(source_counts) == {"medscan"},
-                    "sparser_only:bool": set(source_counts) == {"sparser"},
+                    "medscan_only:bool": set(source_count) == {"medscan"},
+                    "sparser_only:bool": set(source_count) == {"sparser"},
                 }
 
                 # Get the agents from the statement
-                agents: List[Agent] = [
-                    ag for ag in stmt_json["agent_list"] if ag is not None
-                ]
-                if len(agents) < 2:
-                    logger.warning(
-                        f"Statement {stmt_hash} has less than two agents. Skipping."
-                    )
+                stmt = stmt_from_json(stmt_json)
+                agents = stmt.real_agent_list()
+
+                # We skip Conversions
+                if isinstance(stmt, Conversion):
                     continue
-                elif len(agents) == 2:
-                    ag_a, ag_b = agents
-                    ns_a, id_a = get_ag_ns_id(ag_a)
-                    ns_b, id_b = get_ag_ns_id(ag_b)
-                    if not (ns_a and id_a and ns_b and id_b):
+
+                # If we don't have at least 2 real agents, we skip it
+                if len(agents) < 2:
+                    continue
+
+                # We skip any Statements that have ungrounded Agents
+                agent_groundings = [get_ag_ns_id(agent) for agent in agents]
+                if any(
+                    ag_ns is None or ag_id is None for ag_ns, ag_id in agent_groundings
+                ):
+                    continue
+
+                # We need special handling for Complexes
+                if isinstance(stmt, Complex):
+                    if len(agents) > max_complex_members:
                         continue
+                    for (ns_a, id_a, ns_b, id_b) in permutations(agent_groundings, 2):
+                        yield Relation(ns_a, id_a, ns_b, id_b, rel_type, data)
+                        total_count += 1
+                # Otherwise we expect this to be a well behaved binary statement
+                # that we can simply turn into a relation
+                elif len(agents) == 2:
                     yield Relation(
-                        ns_a,
-                        id_a,
-                        ns_b,
-                        id_b,
-                        rel_type,
-                        data,
+                        *agent_groundings[0], *agent_groundings[1], rel_type, data
                     )
                     total_count += 1
-                elif 2 < len(agents) <= max_complex_members:
-                    # This is a complex, so we need to yield a relation for
-                    # each pair of agents of the complex
-                    for ag_a, ag_b in combinations(agents, 2):
-                        ns_a, id_a = get_ag_ns_id(ag_a)
-                        ns_b, id_b = get_ag_ns_id(ag_b)
-                        if not (ns_a and id_a and ns_b and id_b):
-                            continue
-                        yield Relation(
-                            ns_a,
-                            id_a,
-                            ns_b,
-                            id_b,
-                            rel_type,
-                            data,
-                        )
-                        total_count += 1
                 else:
-                    logger.warning(
-                        f"Statement {stmt_hash} has more than {max_complex_members} agents. Skipping."
-                    )
                     continue
 
                 hashes_yielded.add(stmt_hash)
@@ -239,7 +225,7 @@ class EvidenceProcessor(Processor):
         with gzip.open(DbProcessor.edges_path, "rt") as fh:
             reader = csv.reader(fh, delimiter="\t")
             header = next(reader)
-            hash_idx = header.index("stmt_hash:long")
+            hash_idx = header.index("stmt_hash:int")
             for row in reader:
                 included_hashes.add(int(row[hash_idx]))
 
@@ -312,7 +298,7 @@ class EvidenceProcessor(Processor):
                                 labels=["Evidence"],
                                 data={
                                     "evidence:string": json.dumps(evidence),
-                                    "stmt_hash:long": stmt_hash,
+                                    "stmt_hash:int": stmt_hash,
                                 },
                             )
                         )
