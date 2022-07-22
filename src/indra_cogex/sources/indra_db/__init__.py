@@ -34,7 +34,7 @@ from indra_cogex.sources.indra_db.assembly import belief_scores_pkl_fname
 from indra_cogex.sources.indra_db.raw_export import (
     source_counts_fname,
     unique_stmts_fname,
-    grounded_stmts_fname,
+    processed_stmts_fname,
     stmts_from_json,
     raw_stmts_fname,
     text_refs_fname,
@@ -196,7 +196,7 @@ class EvidenceProcessor(Processor):
 
     def __init__(self):
         """Initialize the Evidence processor"""
-        self.stmt_fname = grounded_stmts_fname
+        self.stmt_fname = processed_stmts_fname
         self._stmt_id_pmid_links = {}
         # Check if files exist without loading them
         if not self.stmt_fname.exists():
@@ -246,7 +246,7 @@ class EvidenceProcessor(Processor):
                     evidence_list = stmt_json["evidence"]
                     for evidence in evidence_list:
                         pubmed_node = None
-                        tr = evidence.get("text_refs")
+                        tr = evidence.get("text_refs", {})
 
                         # Add publication Nodes if we have a PMID
                         if "PMID" in tr:
