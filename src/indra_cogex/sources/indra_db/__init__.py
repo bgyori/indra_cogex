@@ -128,7 +128,7 @@ class DbProcessor(Processor):
                     )
                     continue
                 stmt_json = load_statement_json(stmt_json_str)
-                if stmt_json["evidence"][0].source_api == "medscan":
+                if stmt_json["evidence"][0]["source_api"] == "medscan":
                     stmt_json["evidence"] = []
                 data = {
                     "stmt_hash:int": stmt_hash,
